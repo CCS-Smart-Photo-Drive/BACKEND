@@ -6,7 +6,7 @@ app = Flask(__name__)
 #MONGO ka Kuch Kuch:
 
 DEV = True
-app.config["MONGO_URI"] = "apna uri daalo"
+app.config["MONGO_URI"] = "mongodb://localhost:27017/Main" if DEV is True else "mongodb+srv://jsrihari:@backend.rr3us.mongodb.net/backend"
 mongo = PyMongo(app)
 user_collection = mongo.db.users
 event_manager_collection = mongo.db.events_manager

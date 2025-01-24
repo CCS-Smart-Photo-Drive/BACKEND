@@ -40,6 +40,25 @@ def login_user():
     else:
         return jsonify({'error': 'Invalid credentials'}), 400
 
+
+#USER DASHBOARD
+
+@app.route('/my_dashboard', methods = ['POST'])
+def user_my_dashboard():
+    user_name = request.json['user_name']
+    if user_name == '':
+        return jsonify({'error': 'All fields are required'}), 400
+    if 'user_file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+
+    user_dp = request.files['user_file']
+    if user_dp.filename == '':
+        return jsonify({'error': 'No file selected for uploading'}), 400
+
+
+
+
+
 #LOGIN EVENTS
 @app.route('/register_event_manager', methods = ['POST'])
 def register_event_mng():
@@ -112,7 +131,10 @@ def my_events():
 
 @app.route('/all_events')
 def all_events():
-    pass
+    events = list(events_collection.find())
+    for event in events:
+        event['_id'] = str(event['_id'])
+    return jsonify({'events': events}), 200
 
 @app.route('/upload', methods = ['POST'])
 def upload_file():
