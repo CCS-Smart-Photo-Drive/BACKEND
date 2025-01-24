@@ -1,6 +1,5 @@
 from flask import render_template, request, redirect, url_for, jsonify
-from app import *
-from models import *
+from init_config import app, user_collection, event_manager_collection, events_collection
 import cloudinary.uploader
 import os
 import zipfile
@@ -22,6 +21,8 @@ def register_user():
         'password': password
     }
     try:
+        if user_collection.find_one({'user_name': user_name}):
+            return jsonify({'error': 'Username already exists'}), 400
         user_collection.insert_one(user)
     except Exception as e:
         return jsonify({'error': str(e)}), 400
@@ -30,7 +31,14 @@ def register_user():
     return jsonify({'message': 'User successfully registered'}), 201
 @app.route('/login_user', methods = ['POST'])
 def login_user():
-    pass
+    user_name = request.form['user_name']
+    password = request.form['password']
+    if user_name == '' or password == '':
+        return jsonify({'error': 'All fields are required'}), 400
+    if user_collection.find_one({'user_name': user_name}) and user_collection.find_one({'password': password}):
+        return jsonify({'message': 'User successfully logged in'}), 200
+    else:
+        return jsonify({'error': 'Invalid credentials'}), 400
 
 #LOGIN EVENTS
 @app.route('/register_event_manager', methods = ['POST'])
@@ -40,24 +48,36 @@ def register_event_mng():
     password = request.form['password']
     if event_manager_name == '' or email == '' or password == '':
         return jsonify({'error': 'All fields are required'}), 400
-
     event_manager = {
         'event_manager_name': event_manager_name,
         'email': email,
         'password': password
     }
     try:
+
+        if event_manager_collection.find_one({'event_manager_name': event_manager_name}):
+            return jsonify({'error': 'Username already exists'}), 400
         event_manager_collection.insert_one(event_manager)
     except Exception as e:
         return jsonify({'error': str(e)}), 400
+    return jsonify({'message': 'User successfully registered'}), 201
+
 
 @app.route('/login_event_manager', methods = ['POST'])
 def login_event_mng():
-    pass
+    event_manager_name = request.form['event_manager_name']
+    password = request.form['password']
+    if event_manager_name == '' or password == '':
+        return jsonify({'error': 'All fields are required'}), 400
+    if event_manager_collection.find_one({'event_manager_name': event_manager_name}) and event_manager_collection.find_one({'password': password}):
+        return jsonify({'message': 'User successfully logged in'}), 200
+    else:
+        return jsonify({'error': 'Invalid credentials'}), 400
 
 #EVENT MANAGER DASHBOARD
 @app.route('/add_event', methods = ['POST'])
 def add_event():
+    event_manager_name = request.form['event_manager_name']
     event_name = request.form['event_name']
     description = request.form['description']
     organized_by = request.form['organized_by']
@@ -66,9 +86,29 @@ def add_event():
     if event_name == '' or description == '' or organized_by == '' or date == '':
         return jsonify({'error': 'All fields are required'}), 400
 
-@app.route('/my_events')
+    event = {
+        'event_manager_name': event_manager_name,
+        'event_name': event_name,
+        'description': description,
+        'organized_by': organized_by,
+        'date': date
+    }
+    try:
+        if events_collection.find_one({'event_manager_name': event_manager_name}) and events_collection.find_one({'event_name': event_name}):
+            return jsonify({'error': 'Event Already exists'}), 400
+        events_collection.insert_one(event)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'message': 'User successfully registered'}), 201
+@app.route('/my_events', methods = ['POST'])
 def my_events():
-    pass
+    event_manager = request.form['event_manager_name']
+    if event_manager == '':
+        return jsonify({'error': 'All fields are required'}), 400
+    events = list(events_collection.find({'event_manager_name': event_manager}))
+    for event in events:
+        event['_id'] = str([event['_id']])
+    return jsonify({'events': events}), 200
 
 @app.route('/all_events')
 def all_events():
@@ -104,6 +144,3 @@ def upload_file():
 @app.route('/about_us')
 def about_us():
     pass
-
-
-
