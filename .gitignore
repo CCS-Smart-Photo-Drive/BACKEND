@@ -1,2 +1,5 @@
 .venv
 .idea
+.idea/*
+*.pyc
+FACE_MODEL/tester.py
