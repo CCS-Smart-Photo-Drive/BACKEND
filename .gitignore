@@ -1,4 +1,6 @@
 .venv
+.venv/*
 .idea
 .idea/*
 *.pyc
+BACKEND/upload_folder/*
