@@ -8,53 +8,36 @@ from werkzeug.utils import secure_filename
 import cloudinary
 import cloudinary.uploader
 from FACE_MODEL import play
-from .init_config import events_collection, app, event_manager_collection
+from BACKEND.init_config import events_collection, app, event_manager_collection
 import asyncio
 
-# Event_manager Register.
-@app.route('/register_event_manager', methods=['POST'])
-async def register_event_mng():
-    event_manager_name = request.form['event_manager_name']
-    email = request.form['email']
-    password = request.form['password']
-    if event_manager_name == '' or email == '' or password == '':
-        return jsonify({'error': 'All fields are required'}), 400
-    event_manager = {
-        'event_manager_name': event_manager_name,
-        'email': email,
-        'password': bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    }
+# Upload to Cloudinary
+async def upload_to_cloudinary(event_folder, event_name):
     try:
-        if event_manager_collection.find_one({'event_manager_name': event_manager_name}):
-            return jsonify({'error': 'Username already exists'}), 400
-        event_manager_collection.insert_one(event_manager)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
-    return jsonify({'message': 'User successfully registered'}), 201
+        tasks = []
+        for image_file in os.listdir(event_folder):
+            image_path = os.path.join(event_folder, image_file)
+            if os.path.isfile(image_path):
+                # Upload in a separate thread to avoid blocking
+                task = asyncio.to_thread(cloudinary.uploader.upload, image_path, folder=event_name, public_id = image_file)
+                tasks.append(task)
 
-# Event_manager Login
-@app.route('/login_event_manager', methods=['POST'])
-async def login_event_mng():
-    event_manager_name = request.form['event_manager_name']
-    password = request.form['password']
-    if event_manager_name == '' or password == '':
-        return jsonify({'error': 'All fields are required'}), 400
-    event_manager = event_manager_collection.find_one({'event_manager_name': event_manager_name})
-    if event_manager and bcrypt.checkpw(password.encode('utf-8'), event_manager['password'].encode('utf-8')):
-        return jsonify({'message': 'User successfully logged in'}), 200
-    else:
-        return jsonify({'error': 'Invalid credentials'}), 400
+        await asyncio.gather(*tasks)  # Run uploads concurrently
+        return True
+    except Exception as e:
+        return str(e)
 
 # Event_manager Dashboard
 @app.route('/add_new_event', methods=['POST'])
-def add_new_event():
+async def add_new_event():
     event_manager_name = request.form['event_manager_name']
     event_name = request.form['event_name']
     description = request.form['description']
     organized_by = request.form['organized_by']
     date = request.form['date']
+    print("yes1")
 
-    if event_name == '' or description == '' or organized_by == '' or date == '':
+    if not all([event_name, description, organized_by, date]):
         return jsonify({'error': 'All fields are required'}), 400
 
     event = {
@@ -64,8 +47,10 @@ def add_new_event():
         'organized_by': organized_by,
         'date': date
     }
+
     try:
-        if events_collection.find_one({'event_manager_name': event_manager_name}) and events_collection.find_one({'event_name': event_name}):
+        if events_collection.find_one({'event_manager_name': event_manager_name}) and events_collection.find_one(
+                {'event_name': event_name}):
             return jsonify({'error': 'Event Already exists'}), 400
         events_collection.insert_one(event)
     except Exception as e:
@@ -103,19 +88,14 @@ def add_new_event():
         except OSError as e:
             print(e)
             return jsonify({'error': 'Error renaming the files'}), 500
+
         print("BEFORE MODEL")
-        if play.generate_event_embeddings(event_folder, event_name):
-            try:
-                print("before cloudinary")
-                for image_file in os.listdir(event_folder):
-                    image_path = os.path.join(event_folder, image_file)
-                    if os.path.isfile(image_path):
-                        cloudinary.uploader.upload(
-                            image_path,
-                            folder=event_name
-                        )
-            except Exception as e:
-                return jsonify({'error': f'Error uploading images to Cloudinary: {str(e)}'}), 500
+        if await play.generate_event_embeddings(event_folder, event_name):
+            print("BEFORE CLOUDINARY UPLOAD")
+
+            cloudinary_result = await upload_to_cloudinary(event_folder, event_name)
+            if cloudinary_result is not True:
+                return jsonify({'error': f'Error uploading images to Cloudinary: {cloudinary_result}'}), 500
 
             try:
                 shutil.rmtree(event_folder)
@@ -123,7 +103,7 @@ def add_new_event():
             except OSError as e:
                 return jsonify({'error': f'Error deleting local files: {str(e)}'}), 500
 
-            return jsonify({'message': 'Event successfully added and file uploaded, processed, and cleaned up'}), 201
+            return jsonify({'message': 'Event successfully added and files uploaded, processed, and cleaned up'}), 201
         else:
             return jsonify({'error': 'Error processing event embeddings'}), 500
     else:
