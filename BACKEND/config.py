@@ -1,8 +1,8 @@
 import cloudinary
 
-cloud_name = 'dwemlgnlw'
-api_key = '386325562476668'
-api_secret = 'xiH37KELiYrKviGU5Fp4VesJWBs'
+cloud_name = "ADD URS HERE"
+api_key = "ADD URS HERE"
+api_secret = "ADD URS HERE"
 
 cloudinary.config(
   cloud_name = cloud_name,
