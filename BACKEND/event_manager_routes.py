@@ -9,6 +9,7 @@ import cloudinary
 import cloudinary.uploader
 from FACE_MODEL import play
 from .init_config import events_collection, app, event_manager_collection
+import asyncio
 
 # Event_manager Register.
 @app.route('/register_event_manager', methods=['POST'])
@@ -46,8 +47,8 @@ async def login_event_mng():
 
 # Event_manager Dashboard
 @app.route('/add_new_event', methods=['POST'])
-async def add_new_event():
-    event_manager_name = request.json['event_manager_name']
+def add_new_event():
+    event_manager_name = request.form['event_manager_name']
     event_name = request.form['event_name']
     description = request.form['description']
     organized_by = request.form['organized_by']
@@ -99,11 +100,13 @@ async def add_new_event():
                     new_filename = f"{event_name}_{idx}{file_ext}"
                     new_file_path = os.path.join(event_folder, new_filename)
                     os.rename(extracted_file_path, new_file_path)
-        except OSError:
+        except OSError as e:
+            print(e)
             return jsonify({'error': 'Error renaming the files'}), 500
-
+        print("BEFORE MODEL")
         if play.generate_event_embeddings(event_folder, event_name):
             try:
+                print("before cloudinary")
                 for image_file in os.listdir(event_folder):
                     image_path = os.path.join(event_folder, image_file)
                     if os.path.isfile(image_path):

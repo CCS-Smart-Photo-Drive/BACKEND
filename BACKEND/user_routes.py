@@ -1,7 +1,7 @@
 import os
 import zipfile
 import shutil
-from flask import Flask, request, jsonify, send_file
+from flask import  request, jsonify, send_file
 from werkzeug.utils import secure_filename
 import bcrypt
 from BACKEND.init_config import user_collection, app, events_collection
@@ -49,8 +49,8 @@ async def login_user():
 #User Dashboard
 @app.route('/my_dashboard', methods=['POST'])
 async def user_my_dashboard():
-    user_name = request.json['user_name']
-    user_email = request.json['user_email']
+    user_name = request.form['user_name']
+    user_email = request.form['user_email']
     if user_name == '':
         return jsonify({'error': 'All fields are required'}), 400
     if 'user_file' not in request.files:
@@ -79,7 +79,7 @@ async def user_my_dashboard():
 @app.route('/get_photos/<event_name>', methods=['GET', 'POST'])
 async def getting_nemo(event_name):
     if request.method == 'POST':
-        user_email = request.json['user_email']
+        user_email = request.form['user_email']
         try:
             image_names = finding_nemo(user_email, event_name)
             if not image_names:
@@ -90,7 +90,9 @@ async def getting_nemo(event_name):
             with zipfile.ZipFile(zip_path, 'w') as zipf:
                 for image_name in image_names:
                     image_url = cloudinary.CloudinaryImage(f"{event_name}/{image_name}").build_url()
+                    print("image_url", image_url)
                     response = requests.get(image_url, stream=True)
+                    print("response", response)
                     if response.status_code == 200:
                         with open(image_name, 'wb') as img_file:
                             shutil.copyfileobj(response.raw, img_file)
