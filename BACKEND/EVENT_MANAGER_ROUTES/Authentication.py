@@ -30,7 +30,7 @@ async def register_event_mng():
         event_manager_collection.insert_one(event_manager)
     except Exception as e:
         return jsonify({'error': str(e)}), 400
-    return jsonify({'message': 'User successfully registered'}), 201
+    return jsonify({'message': 'User successfully registered', 'name': "hari"}), 201
 
 # Event_manager Login
 @app.route('/login_event_manager', methods=['POST'])
@@ -41,6 +41,6 @@ async def login_event_mng():
         return jsonify({'error': 'All fields are required'}), 400
     event_manager = event_manager_collection.find_one({'event_manager_name': event_manager_name})
     if event_manager and bcrypt.checkpw(password.encode('utf-8'), event_manager['password'].encode('utf-8')):
-        return jsonify({'message': 'User successfully logged in'}), 200
+        return jsonify({'message': 'User successfully logged in', 'name': "hari"}), 200
     else:
         return jsonify({'error': 'Invalid credentials'}), 400

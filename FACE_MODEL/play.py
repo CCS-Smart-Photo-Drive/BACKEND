@@ -21,6 +21,7 @@ async def generate_event_embeddings(image_folder, event_name):
             print(f"Error processing {image_file}: {e}")
 
     loop = asyncio.get_event_loop()
+
     try:
         with ThreadPoolExecutor() as executor:
             await loop.run_in_executor(executor, lambda: list(map(image_processing, image_file_names)))

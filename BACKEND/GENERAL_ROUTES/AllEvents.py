@@ -16,4 +16,5 @@ async def all_events():
     events = list(events_collection.find())
     for event in events:
         event['_id'] = str(event['_id'])
+        event['location'] = 'Thapar'
     return jsonify({'events': events}), 200

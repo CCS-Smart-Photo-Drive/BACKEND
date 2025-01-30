@@ -44,7 +44,7 @@ async def login_user():
     user_email_on_db = user_collection.find_one({'email': user_email})
 
     if user_email_on_db and bcrypt.checkpw(password.encode('utf-8'), user_email_on_db['password'].encode('utf-8')):
-        return jsonify({'message': 'User successfully logged in'}), 200
+        return jsonify({'message': 'User successfully logged in', 'name': "hari", 'profile_picture':  ""}), 200
     else:
         return jsonify({'error': 'Invalid credentials'}), 400
 
