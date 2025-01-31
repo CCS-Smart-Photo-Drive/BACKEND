@@ -1,15 +1,16 @@
 import os
 import zipfile
 import shutil
-from flask import Flask, request, jsonify
+from flask import request, jsonify, g
 import bcrypt
 import BACKEND.config
 from werkzeug.utils import secure_filename
 import cloudinary
 import cloudinary.uploader
 from FACE_MODEL import play
-from BACKEND.init_config import events_collection, app, event_manager_collection
+from BACKEND.init_config import events_collection, app
 import asyncio
+from time import time
 
 # Upload to Cloudinary
 async def upload_to_cloudinary(event_folder, event_name):
@@ -30,10 +31,12 @@ async def upload_to_cloudinary(event_folder, event_name):
 # Event_manager Dashboard
 @app.route('/add_new_event', methods=['POST'])
 async def add_new_event():
-    event_manager_name = request.form['event_manager_name']
+    event_manager_name = g.user['user_name']
+    # event_manager_name = request.form['event_manager_name']
     event_name = request.form['event_name']
     description = request.form['description']
     organized_by = request.form['organized_by']
+
     date = request.form['date']
 
     if not all([event_name, description, organized_by, date]):
@@ -70,7 +73,8 @@ async def add_new_event():
 
     event_folder = os.path.join(app.config['UPLOAD_FOLDER'], event_name)
     os.makedirs(event_folder, exist_ok=True)
-
+    tic_start = time()
+    print(tic_start)
     try:
         with zipfile.ZipFile(file_path, 'r') as zip_ref:
             zip_ref.extractall(event_folder)
@@ -89,17 +93,20 @@ async def add_new_event():
     except OSError as e:
         print(e)
         return jsonify({'error': 'Error renaming the files'}), 500
-
+    tic_mid = time()
+    print(tic_mid-tic_start)
     print("BEFORE MODEL")
     response = await play.generate_event_embeddings(event_folder, event_name)
     if not response:
         return jsonify({'error': 'Error processing event embeddings'}), 500
     print("BEFORE CLOUDINARY UPLOAD")
-
+    tic_mid2 = time()
+    print(tic_mid2-tic_mid)
     cloudinary_result = await upload_to_cloudinary(event_folder, event_name)
     if cloudinary_result is not True:
         return jsonify({'error': f'Error uploading images to Cloudinary: {cloudinary_result}'}), 500
-
+    tic_end = time()
+    print(tic_end-tic_mid2)
     try:
         shutil.rmtree(event_folder)
         os.remove(file_path)
@@ -110,7 +117,7 @@ async def add_new_event():
 
 @app.route('/my_events', methods=['POST'])
 async def my_events():
-    event_manager = request.form['event_manager_name']
+    event_manager = g.user['user_name']
     if event_manager == '':
         return jsonify({'error': 'Return Event_Manager Name'}), 400
     events = list(events_collection.find({'event_manager_name': event_manager}))

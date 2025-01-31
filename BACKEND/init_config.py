@@ -14,6 +14,7 @@ user_collection = mongo.db.users
 event_manager_collection = mongo.db.events_manager
 events_collection = mongo.db.events
 images_collection = mongo.db.images
+tokens_collection = mongo.db.tokens
 
 app.config['SECRET_KEY'] = "8c5eddeaf24a59a7fe723547d252ae01"
 app.config['UPLOAD_FOLDER'] = 'BACKEND\\upload_folder'
