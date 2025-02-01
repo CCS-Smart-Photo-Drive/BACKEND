@@ -1,4 +1,7 @@
 import os
+
+import cloudinary
+import requests
 from flask import  request, jsonify, g
 from BACKEND.init_config import user_collection, app, tokens_collection
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -7,8 +10,10 @@ from cryptography.hazmat.primitives import padding
 import jwt
 from secrets import token_urlsafe
 from dotenv import load_dotenv
+import bcrypt
 import logging
 import json
+import base64
 
 load_dotenv()
 
@@ -56,14 +61,13 @@ def get_user_info_from_sso_token(sso_token):
     return None
 
 
-@app.route('/get_user_status')
-async def user_status():
+@app.route('/get_user_status', methods = ['GET'])
+def user_status():
     return jsonify({
         'status': g.user['is_admin']
     })
 
-#User Registrations
-@app.route('/auth_user', methods = ['POST'])
+@app.route('/sso_auth_user', methods = ['POST'])
 async def auth_user():
     sso_token = request.headers['Authorization'].split(" ")[1]
     print(sso_token)
@@ -79,7 +83,6 @@ async def auth_user():
     user = {
         'user_name': user_name,
         'email': user_email,
-        'is_admin': False,
     }
 
     token = token_urlsafe(16)
@@ -94,7 +97,6 @@ async def auth_user():
             return jsonify({'user': {
                 'user_name': existing_user['user_name'],
                 'email': existing_user['email'],
-                'is_admin': existing_user['is_admin']
             }, 'token': token }), 200
         user_collection.insert_one(user)
     except Exception as e:
@@ -105,3 +107,70 @@ async def auth_user():
         'user_id': existing_user['_id']
     })
     return jsonify({'user': user, 'token': token}), 201
+
+
+@app.route('/register_user', methods = ['POST'])
+async def register_user():
+    user_name = request.form['user_name']
+    user_email = request.form['user_email']
+    password = request.form['password']
+    if user_name == '' or user_email == '' or password == '':
+        return jsonify({'error': 'All fields are required'}), 400
+
+    user = {
+        'user_name': user_name,
+        'email': user_email,
+        'password': bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    }
+    try:
+        if user_collection.find_one({'email': user_email}):
+            return jsonify({'error': 'Username already exists'}), 400
+        new_user = user_collection.insert_one(user)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+    token = token_urlsafe(16)
+
+    tokens_collection.insert_one({
+        'token': token,
+        'user_id': new_user.inserted_id
+    })
+
+    return jsonify({'user': {
+        'user_name': user_name,
+        'email': user_email,
+    }, 'token': token }), 201
+
+@app.route('/login_user', methods = ['POST'])
+async def login_user():
+    user_email = request.form['user_email']
+    password = request.form['password']
+    if user_email == '' or password == '':
+        return jsonify({'error': 'All fields are required'}), 400
+    user_email_on_db = user_collection.find_one({'email': user_email})
+
+    if not (user_email_on_db and bcrypt.checkpw(password.encode('utf-8'), user_email_on_db['password'].encode('utf-8'))):
+        return jsonify({'error': 'Invalid credentials'}), 400
+
+    token = token_urlsafe(16)
+
+    tokens_collection.insert_one({
+        'token': token,
+        'user_id': user_email_on_db['_id']
+    })
+
+    image_url = cloudinary.CloudinaryImage(f"MY_USERS/{user_email}.jpg").build_url()
+    response = requests.get(image_url, stream=True)
+
+    image_base64 = base64.b64encode(response.content).decode("utf-8")
+
+    return jsonify({'user': {
+        'user_name': user_email_on_db['user_name'],
+        'email': user_email_on_db['email'],
+        'profile_picture': f"data:image/jpeg;base64,{image_base64}",
+    }, 'token': token }), 200
+
+@app.route('/logout', methods = ['POST'])
+def logout():
+    tokens_collection.delete_one({'token': g.token})
+    return jsonify({'message': 'Logged out successfully'}), 200

@@ -32,7 +32,6 @@ async def upload_to_cloudinary(event_folder, event_name):
 @app.route('/add_new_event', methods=['POST'])
 async def add_new_event():
     event_manager_name = g.user['user_name']
-    # event_manager_name = request.form['event_manager_name']
     event_name = request.form['event_name']
     description = request.form['description']
     organized_by = request.form['organized_by']
