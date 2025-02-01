@@ -3,6 +3,9 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
+      <excludeFolder url="file://$MODULE_DIR$/BACKEND/upload_folder/PRO" />
+      <excludeFolder url="file://$MODULE_DIR$/BACKEND/upload_folder/PROPRO" />
+      <excludeFolder url="file://$MODULE_DIR$/BACKEND/upload_folder/flknewlfkwn" />
     </content>
     <orderEntry type="jdk" jdkName="Python 3.12 (TaskATask)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />

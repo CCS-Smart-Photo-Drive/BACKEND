@@ -6,8 +6,8 @@ from asgiref.wsgi import WsgiToAsgi
 import uvicorn
 
 # Convert the WSGI app to ASGI
-asgi_app = WsgiToAsgi(app)
+app = WsgiToAsgi(app)
 
 if __name__ == "__main__":
     # Run the app using Uvicorn with auto-reload enabled
-    uvicorn.run("main:asgi_app", host="127.0.0.1", port=5000)
+    uvicorn.run("main:app", host="127.0.0.1", port=5000)

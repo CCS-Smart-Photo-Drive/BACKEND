@@ -4,3 +4,5 @@
 .idea/*
 *.pyc
 BACKEND/upload_folder/*
+.env
+FACE_MOEDEL/*.json

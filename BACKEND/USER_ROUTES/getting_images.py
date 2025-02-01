@@ -1,17 +1,12 @@
 import os
 import zipfile
 import shutil
-from flask import  request, jsonify, send_file
-from werkzeug.utils import secure_filename
-import bcrypt
-from BACKEND.init_config import user_collection, app, events_collection
-from FACE_MODEL.play import generate_user_embeddings, finding_nemo
+from flask import  request, jsonify, send_file, g
+from BACKEND.init_config import  app
+from FACE_MODEL.play import finding_nemo
 import cloudinary
 import cloudinary.uploader
 import requests
-import BACKEND.config
-import asyncio
-import time
 
 @app.route('/get_photos/<event_name>', methods=['GET', 'POST']) #EVENT ID DENI HAI
 async def getting_nemo(event_name):
@@ -31,7 +26,7 @@ async def getting_nemo(event_name):
         response = send_file(file, download_name=zip_filename, mimetype="application/zip", as_attachment=True)
         return response
 
-    user_email = request.form['user_email']
+    user_email = g.user['email']
     try:
         image_names = await finding_nemo(user_email, event_name)
         print(image_names)

@@ -1,7 +1,7 @@
 import os
 import zipfile
 import shutil
-from flask import  request, jsonify, send_file
+from flask import  request, jsonify, send_file, g
 from werkzeug.utils import secure_filename
 import bcrypt
 from BACKEND.init_config import user_collection, app, events_collection
@@ -13,10 +13,8 @@ import asyncio
 
 @app.route('/my_dashboard', methods=['POST'])
 async def user_my_dashboard():
-    user_name = request.form['user_name']
-    user_email = request.form['user_email']
-    if user_name == '':
-        return jsonify({'error': 'All fields are required'}), 400
+    user_name = g.user['user_name']
+    user_email = g.user['email']
     if 'user_file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
 
@@ -30,7 +28,7 @@ async def user_my_dashboard():
         user_dp.save(file_path)
         print("yes1")
         if generate_user_embeddings(file_path, user_email,  user_name):
-            await asyncio.to_thread(cloudinary.uploader.upload, file_path, folder = "MY_USERS", public_id= user_name)
+            await asyncio.to_thread(cloudinary.uploader.upload, file_path, folder = "MY_USERS", public_id=g.user['email'])
         print("yes2")
         # await asyncio.gather(task)
 
