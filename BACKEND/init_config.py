@@ -1,14 +1,20 @@
+import os
+
 from bson import ObjectId
 from flask import Flask, request, jsonify, g
 from flask_pymongo import PyMongo
 from flask_cors import CORS
+from dotenv import load_dotenv
+
+load_dotenv()
+
 app = Flask(__name__)
 CORS(app, resources=["*"], origins='*', supports_credentials=True)
 # CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 def path_request_auth(path):
     return path not in [
-        '/sso_auth_user', '/sso_auth_admin', '/all_events', '/about_us',
+        '/sso_auth', '/sso_auth_user', '/sso_auth_admin', '/all_events', '/about_us',
         '/register_event_manager', '/register_user',
         '/login_event_manager', '/login_user',
     ]
@@ -67,7 +73,7 @@ def add_cors_headers(response):
     return response
 
 DEV = True
-app.config["MONGO_URI"] =
+app.config["MONGO_URI"] = os.getenv("MONGO_URI")
 mongo = PyMongo(app)
 user_collection = mongo.db.users
 event_manager_collection = mongo.db.events_manager
@@ -75,7 +81,7 @@ events_collection = mongo.db.events
 images_collection = mongo.db.images
 tokens_collection = mongo.db.tokens
 
-app.config['SECRET_KEY'] =
+app.config['SECRET_KEY'] = os.getenv("SECRET_KEY")
 app.config['UPLOAD_FOLDER'] = 'BACKEND\\upload_folder'
 app.config['PARTIAL'] = 'upload_folder'
 app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024  #Upload Limit 20 MB

@@ -164,12 +164,14 @@ async def finding_nemo(user_email, event_name):
 
     user_embedding = user_embeddings.get(user_email)
     if not user_embedding:
+        print('user embeddings empty')
         return []
 
     user_embedding = list(user_embedding.values())[0]
 
     event_images_collection = event_embeddings.get(event_name, {})
     if not event_images_collection:
+        print('event images collection empty')
         return []
 
     event_embeddings_list = [(img, emb) for img, emb in event_images_collection.items()]
