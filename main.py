@@ -4,10 +4,14 @@ from BACKEND.USER_ROUTES import authetication, dashboard, getting_images
 from BACKEND.EVENT_MANAGER_ROUTES import events, Authentication
 from asgiref.wsgi import WsgiToAsgi
 import uvicorn
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 # Convert the WSGI app to ASGI
 app = WsgiToAsgi(app)
 
 if __name__ == "__main__":
     # Run the app using Uvicorn with auto-reload enabled
-    uvicorn.run("main:app", host="127.0.0.1", port=5000)
+    uvicorn.run("main:app", host="127.0.0.1", port=int(os.getenv("PORT")))
