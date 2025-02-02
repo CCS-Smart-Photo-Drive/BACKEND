@@ -38,7 +38,7 @@ jobs:
       - name: SSH into server and deploy
         run: |
           ssh -o StrictHostKeyChecking=no kanavdhanda@smartdrive-server.ccstiet.com '
-            cd hacktu6 &&
+            cd smartdrive &&
             git pull origin main &&
             sudo docker compose up --build -d &&
             echo "Allowing Program to start properly" &&
