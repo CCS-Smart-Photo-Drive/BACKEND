@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application files
 COPY . .
-#random test push for ci/cd check
+
 # Keep the container running
 # CMD ["tail", "-f", "/dev/null"]
 
