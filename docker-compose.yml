@@ -1,7 +1,8 @@
 services:
-  python_app:
-    build: .
-    container_name: python_script_container
-    volumes:
-      - .:/app  # Mount current directory to /app inside the container
-    command: python main.py  # Run the script
+  backend:
+    image: ccstiet/smartdrive
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    ports:
+      - "6782:6782"
