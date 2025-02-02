@@ -4,11 +4,19 @@ FROM python:3.12.3
 # Set the working directory inside the container
 WORKDIR /app
 
-# Copy all files from the current directory to /app inside the container
-COPY . .
+# Copy only requirements.txt first for better caching
+COPY requirements.txt .
 
-# Install dependencies (if you have a requirements.txt)
+# Install dependencies
+RUN apt-get update && apt-get install -y cmake && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libgl1 && rm -rf /var/lib/apt/lists/*
+
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Command to run the Python script
+# Copy the rest of the application files
+COPY . .
+
+# Keep the container running
+# CMD ["tail", "-f", "/dev/null"]
+
 CMD ["python", "main.py"]
