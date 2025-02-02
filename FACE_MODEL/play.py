@@ -17,24 +17,51 @@ def process_image(image_path):
 
     return None
 
-
 async def generate_event_embeddings(image_folder, event_name):
+    json_path = 'FACE_MODEL/event_photo_embedding.json'
+
+    # Ensure the folder exists
+    if not os.path.exists(image_folder):
+        print(f"Error: Folder {image_folder} not found!")
+        return False
+
     image_file_names = [
         os.path.join(image_folder, f) for f in os.listdir(image_folder) if f.endswith(('.jpg', '.jpeg', '.png'))
     ]
 
+    if not image_file_names:
+        print("No images found in the folder.")
+        return False
+
     num_workers = min(multiprocessing.cpu_count(), len(image_file_names))
 
     with multiprocessing.Pool(num_workers) as pool:
-        results = await asyncio.get_running_loop().run_in_executor(None,
-                                                                   lambda: pool.map(process_image, image_file_names))
+        results = await asyncio.get_running_loop().run_in_executor(None, lambda: pool.map(process_image, image_file_names))
 
-    event_embeddings = {img: emb for img, emb in results if emb is not None}
+    # Remove None values
+    filtered_results = {img: emb for img, emb in results if img and emb}
 
+    if not filtered_results:
+        print("No valid embeddings generated.")
+        return False
+
+    # Load existing JSON safely
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, 'r', encoding='utf-8') as g:
+                existing_data = json.load(g)
+        except (json.JSONDecodeError, FileNotFoundError):
+            existing_data = {}
+    else:
+        existing_data = {}
+
+    # Merge new embeddings with existing ones
+    existing_data[event_name] = filtered_results
+
+    # Save the updated data safely
     try:
-        with open('FACE_MODEL/event_photo_embedding.json', 'a') as g:
-            json.dump({event_name: event_embeddings}, g)
-            g.write('\n')
+        with open(json_path, 'w', encoding='utf-8') as g:
+            json.dump(existing_data, g, indent=4)
     except Exception as e:
         print(f"Error saving embeddings: {e}")
         return False
@@ -126,7 +153,9 @@ def generate_user_embeddings(image_path, user_email, user_name):
         result = pool.apply(process_user_image, (image_path,))
 
     if result:
-        user_embeddings[user_email] = {user_name: result}
+        if user_email not in user_embeddings:
+            user_embeddings[user_email] = {}
+        user_embeddings[user_email][user_name] = result
     else:
         return False
 
