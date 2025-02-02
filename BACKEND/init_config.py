@@ -17,6 +17,7 @@ def path_request_auth(path):
         '/sso_auth', '/sso_auth_user', '/sso_auth_admin', '/all_events', '/about_us',
         '/register_event_manager', '/register_user',
         '/login_event_manager', '/login_user',
+        '/test',
     ]
 
 def path_request_admin(path):

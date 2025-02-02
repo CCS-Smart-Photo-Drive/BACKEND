@@ -18,3 +18,7 @@ async def all_events():
         event['_id'] = str(event['_id'])
         event['location'] = 'Thapar'
     return jsonify({'events': events}), 200
+
+@app.route('/test', methods = ['POST'])
+def home():
+    return jsonify({'message': 'server is up and running'}), 200
