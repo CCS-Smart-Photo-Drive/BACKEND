@@ -21,4 +21,5 @@ async def all_events():
 
 @app.route('/test', methods = ['GET'])
 def home():
+    #comment for testing
     return jsonify({'message': 'server is up and running'}), 200
