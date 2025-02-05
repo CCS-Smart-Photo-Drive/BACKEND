@@ -68,12 +68,11 @@ def auth():
 @app.after_request
 def add_cors_headers(response):
     """ Ensure CORS headers are added to every response """
-    # response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Origin"] = os.getenv("ALLOWED_ORIGINS")
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     return response
 
-DEV = True
 app.config["MONGO_URI"] = os.getenv("MONGO_URI")
 mongo = PyMongo(app)
 user_collection = mongo.db.users
