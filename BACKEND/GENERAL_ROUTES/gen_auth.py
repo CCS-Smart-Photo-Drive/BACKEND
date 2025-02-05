@@ -69,7 +69,7 @@ def auth():
     for role in user_info['roles']:
         roles.append(role['role'])
 
-    if 'admin' in roles:
+    if ('admin' or 'core' or 'exbo') in roles:
         data = auth_admin({
             'event_manager_name': user_info['name'],
             'email': user_info['email'],
