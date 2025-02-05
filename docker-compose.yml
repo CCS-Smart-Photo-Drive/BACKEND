@@ -6,3 +6,4 @@ services:
       dockerfile: ./Dockerfile
     ports:
       - "6782:6782"
+    network_mode: "host"
