@@ -12,6 +12,7 @@ load_dotenv()
 # Convert the WSGI app to ASGI
 app = WsgiToAsgi(app)
 
+
 if __name__ == "__main__":
     # Run the app using Uvicorn with auto-reload enabled
     uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT")))
