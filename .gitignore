@@ -6,3 +6,5 @@
 BACKEND/upload_folder/*
 .env
 FACE_MOEDEL/*.json
+# Local Netlify folder
+.netlify
