@@ -1,6 +1,6 @@
 # example netlify.toml
 [build]
-  command = "sudo apt install cmake && pip install -r requirements.txt"
+  command = "sudo apt install libopenblas-dev liblapack-dev cmake && pip install -r requirements.txt"
   functions = "netlify/functions"
   publish = ""
 
