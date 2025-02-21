@@ -85,7 +85,7 @@ def auth():
         print(data[0])
         data[0]['user']['is_admin'] = True
         return jsonify(data[0]), data[1]
-
+    #ff
     data = auth_user({
         'user_name': user_info['name'],
         'email': user_info['email'],
