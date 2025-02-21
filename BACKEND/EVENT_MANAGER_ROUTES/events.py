@@ -68,7 +68,11 @@ async def add_new_event():
         return jsonify({'error': 'Allowed file type is .zip'}), 400
     filename = secure_filename(file.filename)
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    file.save(file_path)
+
+    try:
+        file.save(file_path)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
     event_folder = os.path.join(app.config['UPLOAD_FOLDER'], event_name)
     os.makedirs(event_folder, exist_ok=True)

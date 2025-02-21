@@ -19,13 +19,13 @@ def auth_admin(user):
                 'event_manager_name': existing_user['event_manager_name'],
                 'email': existing_user['email'],
             }, 'token': token}, 200
-        event_manager_collection.insert_one(user)
+        user = event_manager_collection.insert_one(user)
     except Exception as e:
         return {'error': str(e)}, 400
 
     tokens_collection.insert_one({
         'token': token,
-        'user_id': existing_user['_id']
+        'user_id': user['_id']
     })
     return {'user': user, 'token': token}, 201
 
