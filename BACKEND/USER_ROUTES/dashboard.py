@@ -25,6 +25,7 @@ async def user_my_dashboard():
     try:
         filename = secure_filename(user_dp.filename)
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
         user_dp.save(file_path)
         print("yes1")
         if generate_user_embeddings(file_path, user_email,  user_name):
