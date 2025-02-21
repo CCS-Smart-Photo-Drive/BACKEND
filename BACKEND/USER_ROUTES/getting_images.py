@@ -10,6 +10,7 @@ import requests
 
 @app.route('/get_photos/<event_name>', methods=['GET', 'POST']) #EVENT ID DENI HAI
 async def getting_nemo(event_name):
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     if request.method == 'GET':
         zip_filename = request.args.get('download')
         if not zip_filename:
