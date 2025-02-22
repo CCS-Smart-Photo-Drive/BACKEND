@@ -130,9 +130,9 @@ async def add_new_event():
     print("BEFORE CLOUDINARY UPLOAD")
     tic_mid2 = time()
     print(tic_mid2-tic_mid)
-    gcs_urls = await upload_to_gcs(event_folder, event_name)
-    if not gcs_urls:
-        return jsonify({'error': 'Error uploading images to Google Cloud Storage'}), 500
+    cloudinary_result = await upload_to_gcs(event_folder, event_name)
+    if cloudinary_result is not True:
+        return jsonify({'error': f'Error uploading images to Cloudinary: {cloudinary_result}'}), 500
     tic_end = time()
     print(tic_end-tic_mid2)
     try:
