@@ -7,5 +7,5 @@ services:
     ports:
       - "6782:6782"
     volumes:
-      - ./BACKEND/upload_folder/:/app/BACKEND/upload_folder
+      - /BACKEND/upload_folder/:/app/BACKEND/upload_folder
     # network_mode: "host"
