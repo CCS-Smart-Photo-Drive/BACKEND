@@ -6,4 +6,6 @@ services:
       dockerfile: ./Dockerfile
     ports:
       - "6782:6782"
+    volumes:
+      - ./BACKEND/upload_foldet/:/app/BACKEND/upload_folder
     network_mode: "host"
