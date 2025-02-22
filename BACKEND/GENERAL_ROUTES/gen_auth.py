@@ -69,22 +69,22 @@ def auth():
     for role in user_info['roles']:
         roles.append(role['role'])
 
-    # if ('admin' or 'core' or 'exbo') in roles:
-    #     data = auth_admin({
-    #         'event_manager_name': user_info['name'],
-    #         'email': user_info['email'],
-    #     })
-    #     data[0]['user']['is_admin'] = True
-    #     return jsonify(data[0]), data[1]
-    if any(role in roles for role in ['admin', 'core', 'exbo']):
+    if ('admin' or 'core' or 'exbo') in roles:
         data = auth_admin({
             'event_manager_name': user_info['name'],
             'email': user_info['email'],
         })
-        print(data)
-        print(data[0])
         data[0]['user']['is_admin'] = True
         return jsonify(data[0]), data[1]
+    # if any(role in roles for role in ['admin', 'core', 'exbo']):
+    #     data = auth_admin({
+    #         'event_manager_name': user_info['name'],
+    #         'email': user_info['email'],
+    #     })
+    #     print(data)
+    #     print(data[0])
+    #     data[0]['user']['is_admin'] = True
+    #     return jsonify(data[0]), data[1]
     #ff
     data = auth_user({
         'user_name': user_info['name'],
