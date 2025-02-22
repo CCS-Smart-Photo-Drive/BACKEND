@@ -11,14 +11,19 @@ from FACE_MODEL import play
 from BACKEND.init_config import events_collection, app
 import asyncio
 from time import time
+
+
+
+# Upload to Google
 from google.cloud import storage
+import os
+import asyncio
 
-
-# Upload to Cloudinary
-async def upload_to_cloudinary(event_folder, event_name):
+async def upload_to_gcs(event_folder, event_name):
     try:
         client = storage.Client()
-        bucket = client.bucket("ccs-host.appspot.com")  # Your GCS bucket name
+        bucket_name = "ccs-host.appspot.com"  # Your bucket name
+        bucket = client.bucket(bucket_name)
 
         urls = []
         tasks = []
@@ -26,24 +31,26 @@ async def upload_to_cloudinary(event_folder, event_name):
         for image_file in os.listdir(event_folder):
             image_path = os.path.join(event_folder, image_file)
             if os.path.isfile(image_path):
+                # Ensure all files go inside "upload_folder/event_name/"
                 blob_name = f"upload_folder/{event_name}/{image_file}"
                 blob = bucket.blob(blob_name)
 
                 # Upload asynchronously
                 task = asyncio.to_thread(blob.upload_from_filename, image_path)
                 tasks.append(task)
-                urls.append(f"https://storage.googleapis.com/ccs-host.appspot.com/{blob_name}")
+                urls.append(f"https://storage.googleapis.com/{bucket_name}/{blob_name}")
 
         await asyncio.gather(*tasks)  # Upload all files concurrently
 
         # Make all uploaded files public
         for blob_name in urls:
-            blob = bucket.blob(blob_name.replace("https://storage.googleapis.com/ccs-host.appspot.com/", ""))
+            blob = bucket.blob(blob_name.replace(f"https://storage.googleapis.com/{bucket_name}/", ""))
             blob.make_public()
 
         return urls  # Return list of public URLs
     except Exception as e:
         return str(e)
+
 
 # Event_manager Dashboard
 @app.route('/add_new_event', methods=['POST'])
