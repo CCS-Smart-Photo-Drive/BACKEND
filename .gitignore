@@ -8,3 +8,4 @@ BACKEND/upload_folder/*
 FACE_MOEDEL/*.json
 # Local Netlify folder
 .netlify
+BACKEND/config/serviceAccount.json

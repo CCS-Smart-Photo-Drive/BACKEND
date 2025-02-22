@@ -16,12 +16,14 @@ from time import time
 
 # Upload to Google
 from google.cloud import storage
-import os
 import asyncio
+import os
+
+# Set the environment variable to use the service account
 
 async def upload_to_gcs(event_folder, event_name):
     try:
-        client = storage.Client()
+        client = storage.Client()  # Uses the service account JSON now
         bucket_name = "ccs-host.appspot.com"  # Your bucket name
         bucket = client.bucket(bucket_name)
 
@@ -31,7 +33,6 @@ async def upload_to_gcs(event_folder, event_name):
         for image_file in os.listdir(event_folder):
             image_path = os.path.join(event_folder, image_file)
             if os.path.isfile(image_path):
-                # Ensure all files go inside "upload_folder/event_name/"
                 blob_name = f"upload_folder/{event_name}/{image_file}"
                 blob = bucket.blob(blob_name)
 
@@ -43,13 +44,15 @@ async def upload_to_gcs(event_folder, event_name):
         await asyncio.gather(*tasks)  # Upload all files concurrently
 
         # Make all uploaded files public
-        for blob_name in urls:
-            blob = bucket.blob(blob_name.replace(f"https://storage.googleapis.com/{bucket_name}/", ""))
+        for image_url in urls:
+            blob_name = image_url.replace(f"https://storage.googleapis.com/{bucket_name}/", "")
+            blob = bucket.blob(blob_name)
             blob.make_public()
 
         return urls  # Return list of public URLs
     except Exception as e:
         return str(e)
+
 
 
 # Event_manager Dashboard
