@@ -11,20 +11,37 @@ from FACE_MODEL import play
 from BACKEND.init_config import events_collection, app
 import asyncio
 from time import time
+from google.cloud import storage
+
 
 # Upload to Cloudinary
 async def upload_to_cloudinary(event_folder, event_name):
     try:
+        client = storage.Client()
+        bucket = client.bucket("ccs-host.appspot.com")  # Your GCS bucket name
+
+        urls = []
         tasks = []
+
         for image_file in os.listdir(event_folder):
             image_path = os.path.join(event_folder, image_file)
             if os.path.isfile(image_path):
-                # Upload in a separate thread to avoid blocking
-                task = asyncio.to_thread(cloudinary.uploader.upload, image_path, folder=event_name, public_id = image_file)
-                tasks.append(task)
+                blob_name = f"upload_folder/{event_name}/{image_file}"
+                blob = bucket.blob(blob_name)
 
-        await asyncio.gather(*tasks)  # Run uploads concurrently
-        return True
+                # Upload asynchronously
+                task = asyncio.to_thread(blob.upload_from_filename, image_path)
+                tasks.append(task)
+                urls.append(f"https://storage.googleapis.com/ccs-host.appspot.com/{blob_name}")
+
+        await asyncio.gather(*tasks)  # Upload all files concurrently
+
+        # Make all uploaded files public
+        for blob_name in urls:
+            blob = bucket.blob(blob_name.replace("https://storage.googleapis.com/ccs-host.appspot.com/", ""))
+            blob.make_public()
+
+        return urls  # Return list of public URLs
     except Exception as e:
         return str(e)
 
