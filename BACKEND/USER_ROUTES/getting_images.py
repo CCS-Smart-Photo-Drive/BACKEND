@@ -84,7 +84,7 @@ async def getting_nemo(event_name):
 
         return jsonify({
             'download': zip_filename,
-            'image_urls': jsonify(image_urls)  # Return public URLs of images
+            'image_urls': image_urls  # Return public URLs of images
         }), 200
 
     except Exception as e:
