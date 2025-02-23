@@ -9,3 +9,5 @@ FACE_MOEDEL/*.json
 # Local Netlify folder
 .netlify
 BACKEND/config/serviceAccount.json
+FACE_MODEL/user_embeddigs.json
+FACE_MODEL/event_photo_embedding.json

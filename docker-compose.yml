@@ -8,4 +8,5 @@ services:
       - "6782:6782"
     volumes:
       - ./BACKEND/upload_folder/:/app/BACKEND/upload_folder
+      - ./FACE_MODEL/:/app/FACE_MODEL
     #network_mode: "host"

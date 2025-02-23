@@ -10,6 +10,7 @@ from BACKEND.init_config import events_collection, app
 import asyncio
 from time import time
 
+import uuid
 
 
 # Upload to Google
@@ -18,13 +19,16 @@ import asyncio
 import os
 
 # Set the environment variable to use the service account
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # Directory of this script
+SERVICE_ACCOUNT_PATH = os.path.join(BASE_DIR, "..", "config", "serviceAccount.json")
+
+# Initialize the client
+client = storage.Client.from_service_account_json(SERVICE_ACCOUNT_PATH)
+bucket_name = "ccs-host.appspot.com"
+bucket = client.bucket(bucket_name)
 
 async def upload_to_gcs(event_folder, event_name):
     try:
-        client = storage.Client()
-        bucket_name = "ccs-host.appspot.com"
-        bucket = client.bucket(bucket_name)
-
         tasks = []
 
         for image_file in os.listdir(event_folder):
