@@ -23,7 +23,7 @@ async def get_gcs_image_urls(event_name, image_names):
         image_urls = []
 
         for image_name in image_names:
-            blob_name = f"{event_name}/{image_name}"  # Full GCS path
+            blob_name = f"upload_folder/{event_name}/{image_name}"  # Full GCS path
             blob = bucket.blob(blob_name)
 
             if blob.exists():
