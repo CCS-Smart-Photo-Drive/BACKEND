@@ -74,7 +74,7 @@ async def extract_and_process_zip(zip_path, extract_to, event_name, user_email):
         blob = bucket.blob(blob_name)
         blob.make_public()
     
-    send_email(user_email, event_name, urls)
+    send_email("kanavdhanda@hotmail.com", event_name, urls)
     return urls
 
 
