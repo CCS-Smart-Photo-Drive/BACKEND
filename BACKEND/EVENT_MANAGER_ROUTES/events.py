@@ -363,7 +363,7 @@ async def process_embeddings_and_upload(event_folder, event_name):
 async def add_new_event():
     """Handles large file uploads via streaming."""
     try:
-        event_manager_name = g.user['X-Event-Manager-Name']
+        event_manager_name =request.headers.get('X-Event-Manager-Name')
         event_name = request.headers.get('X-Event-Name')
         description = request.headers.get('X-Description')
         organized_by = request.headers.get('X-Organized-By')
