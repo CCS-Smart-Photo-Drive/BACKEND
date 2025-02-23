@@ -73,7 +73,7 @@ async def upload_to_gcs(local_file_path, user_email):
         blob.make_public()
         print(blob.public_url)
         # Return public URL
-        return blob.public_url
+        return blob.public_url, None
 
     except Exception as e:
         return None, str(e)
@@ -97,16 +97,18 @@ async def user_my_dashboard():
         
         # Save the file locally
         user_dp.save(file_path)
-
+        embedGen = generate_user_embeddings(file_path, user_email, user_name)
+        print(embedGen)
         # Process embeddings
-        if generate_user_embeddings(file_path, user_email, user_name):
+        if embedGen:
             public_url, error = await upload_to_gcs(file_path, user_email)
             if public_url:
                 os.remove(file_path)
                 print(public_url)
                 return jsonify({'success': 'File uploaded', 'url': public_url}), 200
             else:
-                return jsonify({'error': f'GCS upload failed: {error}'}), 500
+                if error:
+                    return jsonify({'error': f'GCS upload failed: {error}'}), 500
 
         return jsonify({'error': 'Embedding generation failed'}), 500
 
