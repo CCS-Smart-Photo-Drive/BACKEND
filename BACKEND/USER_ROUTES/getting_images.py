@@ -4,19 +4,22 @@ import shutil
 from flask import  request, jsonify, send_file, g
 from BACKEND.init_config import  app
 from FACE_MODEL.play import finding_nemo
-import cloudinary
-import cloudinary.uploader
 import requests
 
 from google.cloud import storage
 import asyncio
 
-storage_client = storage.Client()
-BUCKET_NAME = "ccs-host.appspot.com"  # Your actual GCS bucket name
+# Initialize Google Cloud Storage Client with Service Account
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # Directory of this script
+SERVICE_ACCOUNT_PATH = os.path.join(BASE_DIR, "..", "config", "serviceAccount.json")
+
+# Initialize the client
+client = storage.Client.from_service_account_json(SERVICE_ACCOUNT_PATH)
+bucket_name = "ccs-host.appspot.com"
+bucket = client.bucket(bucket_name)
 
 async def get_gcs_image_urls(event_name, image_names):
     try:
-        bucket = storage_client.bucket(BUCKET_NAME)
         image_urls = []
 
         for image_name in image_names:

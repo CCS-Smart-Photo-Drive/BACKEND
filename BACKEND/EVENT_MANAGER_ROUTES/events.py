@@ -29,11 +29,17 @@ client = storage.Client.from_service_account_json(SERVICE_ACCOUNT_PATH)
 bucket_name = "ccs-host.appspot.com"
 bucket = client.bucket(bucket_name)
 
+async def extract_zip_async(zip_path, extract_to):
+    """Extract ZIP file asynchronously using asyncio.to_thread"""
+    return await asyncio.to_thread(zipfile.ZipFile(zip_path, 'r').extractall, extract_to)
+
 async def upload_to_gcs(event_folder, event_name):
+    """Uploads extracted files to GCS asynchronously"""
     try:
         urls = []
         tasks = []
-
+        
+        # List files and upload them concurrently
         for image_file in os.listdir(event_folder):
             image_path = os.path.join(event_folder, image_file)
             if os.path.isfile(image_path):
@@ -55,18 +61,15 @@ async def upload_to_gcs(event_folder, event_name):
 
         return urls, None  # Return list of public URLs
     except Exception as e:
-        return None,str(e)
+        return None, str(e)
 
-
-
-# Event_manager Dashboard
 @app.route('/add_new_event', methods=['POST'])
 async def add_new_event():
+    """Handles event creation and file uploads"""
     event_manager_name = g.user['user_name']
     event_name = request.form['event_name']
     description = request.form['description']
     organized_by = request.form['organized_by']
-
     date = request.form['date']
 
     if not all([event_name, description, organized_by, date]):
@@ -81,8 +84,7 @@ async def add_new_event():
     }
 
     try:
-        if events_collection.find_one({'event_manager_name': event_manager_name}) and events_collection.find_one(
-                {'event_name': event_name}):
+        if events_collection.find_one({'event_manager_name': event_manager_name}) and events_collection.find_one({'event_name': event_name}):
             return jsonify({'error': 'Event Already exists'}), 400
         events_collection.insert_one(event)
     except Exception as e:
@@ -95,8 +97,9 @@ async def add_new_event():
     if file.filename == '':
         return jsonify({'error': 'No file selected for uploading'}), 400
 
-    if not (file and file.filename.endswith('.zip')):
+    if not file.filename.endswith('.zip'):
         return jsonify({'error': 'Allowed file type is .zip'}), 400
+
     filename = secure_filename(file.filename)
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -108,42 +111,45 @@ async def add_new_event():
 
     event_folder = os.path.join(app.config['UPLOAD_FOLDER'], event_name)
     os.makedirs(event_folder, exist_ok=True)
+
     tic_start = time()
-    print(tic_start)
     try:
-        with zipfile.ZipFile(file_path, 'r') as zip_ref:
-            zip_ref.extractall(event_folder)
-    except (zipfile.BadZipFile, OSError):
+        await extract_zip_async(file_path, event_folder)  # Extract asynchronously
+    except zipfile.BadZipFile:
         return jsonify({'error': 'Error extracting the zip file'}), 500
 
     try:
+        # Rename extracted files for uniqueness
         for idx, extracted_file in enumerate(os.listdir(event_folder), start=1):
             extracted_file_path = os.path.join(event_folder, extracted_file)
             if not os.path.isfile(extracted_file_path):
                 continue
             file_ext = os.path.splitext(extracted_file)[1]
             new_filename = f"{event_name}_{idx}{file_ext}"
-            new_file_path = os.path.join(event_folder, new_filename)
-            os.rename(extracted_file_path, new_file_path)
+            os.rename(extracted_file_path, os.path.join(event_folder, new_filename))
     except OSError as e:
-        print(e)
         return jsonify({'error': 'Error renaming the files'}), 500
+
     tic_mid = time()
-    print(tic_mid-tic_start)
-    print("BEFORE MODEL")
+    print(f"Time taken for extraction and renaming: {tic_mid - tic_start:.2f}s")
+
+    # Process event embeddings
     response = await play.generate_event_embeddings(event_folder, event_name)
     if not response:
         return jsonify({'error': 'Error processing event embeddings'}), 500
-    print("BEFORE CLOUDINARY UPLOAD")
+
     tic_mid2 = time()
-    print(tic_mid2-tic_mid)
+    print(f"Time taken before cloud upload: {tic_mid2 - tic_mid:.2f}s")
+
+    # Upload extracted files to Google Cloud Storage
     cloudinary_result, err = await upload_to_gcs(event_folder, event_name)
-    # if cloudinary_result is not True:
-    #     return jsonify({'error': f'Error uploading images to Cloudinary: {cloudinary_result}'}), 500
     if err:
-        return jsonify({'error': f'Error while uploading images to GCS:{err}'}) , 500
+        return jsonify({'error': f'Error while uploading images to GCS: {err}'}), 500
+
     tic_end = time()
-    print(tic_end-tic_mid2)
+    print(f"Time taken for GCS upload: {tic_end - tic_mid2:.2f}s")
+
+    # Cleanup local files
     try:
         shutil.rmtree(event_folder)
         os.remove(file_path)
