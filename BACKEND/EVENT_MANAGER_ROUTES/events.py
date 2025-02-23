@@ -380,13 +380,6 @@ async def add_new_event():
         'date': date
         }
 
-        try:
-            if events_collection.find_one({'event_manager_name': event_manager_name, 'event_name': event_name}):
-                return jsonify({'error': 'Event Already exists'}), 400
-            events_collection.insert_one(event)
-        except Exception as e:
-            return jsonify({'error': str(e)}), 400
-
 
         event_folder = os.path.join(app.config['UPLOAD_FOLDER'], event_name)
         os.makedirs(event_folder, exist_ok=True)
@@ -426,7 +419,16 @@ async def add_new_event():
             new_filename = f"{event_name}_{idx}{file_ext}"
             os.rename(extracted_file_path, os.path.join(event_folder, new_filename))
 
+
+        try:
+            if events_collection.find_one({'event_manager_name': event_manager_name, 'event_name': event_name}):
+                return jsonify({'error': 'Event Already exists'}), 400
+            events_collection.insert_one(event)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
         # ✅ **Start background processing**
+
         asyncio.create_task(process_embeddings_and_upload(event_folder, event_name))
 
         os.remove(file_path)  # Delete zip file after extraction
