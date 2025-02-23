@@ -433,6 +433,7 @@ async def add_new_event():
         
         # Start background processing
         log_debug("Starting background processing task")
+        print(f"{event_folder}")
         await task_manager.add_task(
             process_embeddings_and_upload(event_folder, event['event_name'])
         )
