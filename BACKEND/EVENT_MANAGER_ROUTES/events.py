@@ -95,6 +95,7 @@ def send_email(to_email, subject, body):
     except Exception as e:
         print(f"Failed to send email: {e}")
 
+
 @app.route('/add_new_event', methods=['POST'])
 def add_new_event():
     event_manager_name = g.user['user_name']
@@ -109,8 +110,14 @@ def add_new_event():
 
     if events_collection.find_one({'event_manager_name': event_manager_name, 'event_name': event_name}):
         return jsonify({'error': 'Event already exists'}), 400
-    
 
+    events_collection.insert_one({
+        'event_manager_name': event_manager_name,
+        'event_name': event_name,
+        'description': description,
+        'organized_by': organized_by,
+        'date': date
+    })
 
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
@@ -118,34 +125,26 @@ def add_new_event():
     file = request.files['file']
     if file.filename == '' or not file.filename.endswith('.zip'):
         return jsonify({'error': 'Allowed file type is .zip'}), 400
-    
+
     filename = secure_filename(file.filename)
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     file.save(file_path)
-    
+
     event_folder = os.path.join(app.config['UPLOAD_FOLDER'], event_name)
     os.makedirs(event_folder, exist_ok=True)
-    
+
     try:
         with zipfile.ZipFile(file_path, 'r') as zip_ref:
             zip_ref.extractall(event_folder)
     except (zipfile.BadZipFile, OSError):
         return jsonify({'error': 'Error extracting the zip file'}), 500
-    
-    asyncio.create_task(process_and_upload(event_folder, event_name, user_email))
-    
-    try:
-        events_collection.insert_one({
-            'event_manager_name': event_manager_name,
-            'event_name': event_name,
-            'description': description,
-            'organized_by': organized_by,
-            'date': date
-        })
-    except:
-        return {'error': 'error in mongo'}, 500
-    
+
+    # Run the background task using a separate thread
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_in_executor(None, asyncio.run, process_and_upload(event_folder, event_name, user_email))
+
     return jsonify({'message': 'Event registered. Processing will continue in the background.'}), 201
 
 @app.route('/my_events', methods=['POST'])
