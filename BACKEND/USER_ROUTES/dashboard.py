@@ -6,8 +6,6 @@ from werkzeug.utils import secure_filename
 import bcrypt
 from BACKEND.init_config import user_collection, app, events_collection
 from FACE_MODEL.play import generate_user_embeddings, finding_nemo
-import cloudinary
-import cloudinary.uploader
 import requests
 import asyncio
 # Upload to Google
@@ -80,11 +78,10 @@ async def user_my_dashboard():
         filename = secure_filename(user_dp.filename)
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-        user_dp.save(file_path)  # Save locally first
+        user_dp.save(file_path)
 
         if generate_user_embeddings(file_path, user_email, user_name):
-            await upload_to_gcs(file_path, user_email)  # Upload to GCS
-            # Delete local file after successful upload
+            await upload_to_gcs(file_path, user_email)
             os.remove(file_path)
             return jsonify({'success': 'File uploaded and local copy deleted'}), 200
 
