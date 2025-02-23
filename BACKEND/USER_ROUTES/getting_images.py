@@ -45,8 +45,9 @@ async def getting_nemo(event_name):
         zip_filename = request.args.get('download')
         if not zip_filename:
             return jsonify({'error': 'No file specified for download'}), 400
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], zip_filename)
-        print(file_path)
+        # file_path = os.path.join(app.config['UPLOAD_FOLDER'], zip_filename)
+        # print(file_path)
+        file_path = zip_filename
         try:
             return send_file(file_path, download_name=zip_filename, as_attachment=True)
         except Exception as e:
