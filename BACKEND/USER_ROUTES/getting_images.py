@@ -48,7 +48,7 @@ async def getting_nemo(event_name):
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], zip_filename)
 
         try:
-            return send_file(file_path, download_name=zip_filename, mimetype="application/zip", as_attachment=True)
+            return send_file(file_path, download_name=zip_filename, as_attachment=True)
         except Exception as e:
             print(e)
             return jsonify({'error': 'File not found'}), 404
