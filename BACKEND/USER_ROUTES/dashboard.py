@@ -1,6 +1,8 @@
 import os
 import zipfile
 import shutil
+import uuid
+
 from flask import  request, jsonify, send_file, g
 from werkzeug.utils import secure_filename
 import bcrypt
@@ -44,25 +46,33 @@ import asyncio
 #         return jsonify({'error': str(e)}), 500
 
 
+
+# Initialize Google Cloud Storage Client with Service Account
+client = storage.Client.from_service_account_json("../config/serviceAccount.json")
+bucket_name = "ccs-host.appspot.com"
+bucket = client.bucket(bucket_name)
+
 async def upload_to_gcs(local_file_path, user_email):
     try:
-        client = storage.Client()
-        bucket_name = "ccs-host.appspot.com"
-        bucket = client.bucket(bucket_name)
+        # Generate a random filename
+        ext = os.path.splitext(local_file_path)[1]
+        random_filename = f"profile_{uuid.uuid4().hex}{ext}"
 
-        filename = os.path.basename(local_file_path)
-        filename = "profile" + os.path.splitext(local_file_path)[1]
-
-        blob_name = f"MY_USERS/{user_email}/{filename}"
+        # Define blob path
+        blob_name = f"MY_USERS/{user_email}/{random_filename}"
         blob = bucket.blob(blob_name)
 
         # Asynchronous upload
         await asyncio.to_thread(blob.upload_from_filename, local_file_path)
 
-        return True
+        # Make the file public
+        blob.make_public()
+
+        # Return public URL
+        return blob.public_url
 
     except Exception as e:
-        return jsonify({'error': 'Embedding generation failed'}), 500
+        return None, str(e)
 
 @app.route('/my_dashboard', methods=['POST'])
 async def user_my_dashboard():
@@ -78,14 +88,20 @@ async def user_my_dashboard():
 
     try:
         filename = secure_filename(user_dp.filename)
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        # Save the file locally
         user_dp.save(file_path)
 
+        # Process embeddings
         if generate_user_embeddings(file_path, user_email, user_name):
-            await upload_to_gcs(file_path, user_email)
-            os.remove(file_path)
-            return jsonify({'success': 'File uploaded and local copy deleted'}), 200
+            public_url, error = await upload_to_gcs(file_path, user_email)
+            if public_url:
+                os.remove(file_path)
+                return jsonify({'success': 'File uploaded', 'url': public_url}), 200
+            else:
+                return jsonify({'error': f'GCS upload failed: {error}'}), 500
 
         return jsonify({'error': 'Embedding generation failed'}), 500
 
