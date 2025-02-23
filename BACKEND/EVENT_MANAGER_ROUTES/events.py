@@ -5,8 +5,6 @@ from flask import request, jsonify, g
 import bcrypt
 import BACKEND.config
 from werkzeug.utils import secure_filename
-import cloudinary
-import cloudinary.uploader
 from FACE_MODEL import play
 from BACKEND.init_config import events_collection, app
 import asyncio
@@ -23,11 +21,10 @@ import os
 
 async def upload_to_gcs(event_folder, event_name):
     try:
-        client = storage.Client()  # Uses the service account JSON now
-        bucket_name = "ccs-host.appspot.com"  # Your bucket name
+        client = storage.Client()
+        bucket_name = "ccs-host.appspot.com"
         bucket = client.bucket(bucket_name)
 
-        urls = []
         tasks = []
 
         for image_file in os.listdir(event_folder):
@@ -36,22 +33,16 @@ async def upload_to_gcs(event_folder, event_name):
                 blob_name = f"upload_folder/{event_name}/{image_file}"
                 blob = bucket.blob(blob_name)
 
-                # Upload asynchronously
+                # Asynchronous upload
                 task = asyncio.to_thread(blob.upload_from_filename, image_path)
                 tasks.append(task)
-                urls.append(f"https://storage.googleapis.com/{bucket_name}/{blob_name}")
 
-        await asyncio.gather(*tasks)  # Upload all files concurrently
+        await asyncio.gather(*tasks)
 
-        # Make all uploaded files public
-        for image_url in urls:
-            blob_name = image_url.replace(f"https://storage.googleapis.com/{bucket_name}/", "")
-            blob = bucket.blob(blob_name)
-            blob.make_public()
+        print(f"Uploaded all images to GCS under event: {event_name}")
 
-        return urls  # Return list of public URLs
     except Exception as e:
-        return str(e)
+        print(f"Error uploading files: {e}")
 
 
 
@@ -80,7 +71,7 @@ async def add_new_event():
         if events_collection.find_one({'event_manager_name': event_manager_name}) and events_collection.find_one(
                 {'event_name': event_name}):
             return jsonify({'error': 'Event Already exists'}), 400
-        events_collection.insert_one(event)
+
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
@@ -130,12 +121,13 @@ async def add_new_event():
     response = await play.generate_event_embeddings(event_folder, event_name)
     if not response:
         return jsonify({'error': 'Error processing event embeddings'}), 500
-    print("BEFORE CLOUDINARY UPLOAD")
+    print("BEFORE GCS UPLOAD")
     tic_mid2 = time()
     print(tic_mid2-tic_mid)
-    cloudinary_result = await upload_to_gcs(event_folder, event_name)
-    if cloudinary_result is not True:
-        return jsonify({'error': f'Error uploading images to Cloudinary: {cloudinary_result}'}), 500
+    gcs_result = await upload_to_gcs(event_folder, event_name)
+    if gcs_result is not True:
+        return jsonify({'error': f'Error uploading to GCS: {gcs_result}'}), 500
+
     tic_end = time()
     print(tic_end-tic_mid2)
     try:
@@ -143,6 +135,10 @@ async def add_new_event():
         os.remove(file_path)
     except OSError as e:
         return jsonify({'error': f'Error deleting local files: {str(e)}'}), 500
+    try:
+        events_collection.insert_one(event)
+    except:
+        return jsonify({'error': 'couldnt uplaod to mongo'}), 500
 
     return jsonify({'message': 'Event successfully added and files uploaded, processed, and cleaned up'}), 201
 
@@ -155,3 +151,15 @@ async def my_events():
     for event in events:
         event['_id'] = str(event['_id'])
     return jsonify({'events': events}), 200
+
+@app.route('/remove_event', methods = ['DELETE'])
+async def remove_event():
+    event_manager = g.user['user_name']
+    event_name = request.form['event_name']
+    if event_name == '':
+        return jsonify({'error': 'Return Event Name'}), 400
+    event = events_collection.find_one({'event_manager_name': event_manager, 'event_name': event_name})
+    if not event:
+        return jsonify({'error': 'Event not found'}), 404
+    events_collection.delete_one({'event_manager_name': event_manager, 'event_name': event_name})
+    return jsonify({'message': 'Event deleted successfully'}), 200
