@@ -163,7 +163,7 @@ async def add_new_event():
         new_file_path = os.path.join(event_folder, new_filename)
         os.rename(extracted_file_path, new_file_path)
     
-    asyncio.create_task(process_embeddings_and_upload(event_folder, event_name, recipient_email))
+    asyncio.create_task(process_embeddings_and_upload(event_folder, event_name))
     os.remove(file_path)  # Remove zip file after extraction
     return jsonify({'message': 'Event added. Processing in background.'}), 202
 
