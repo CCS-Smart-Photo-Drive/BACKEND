@@ -83,6 +83,6 @@ tokens_collection = mongo.db.tokens
 
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY")
 app.config['UPLOAD_FOLDER'] = os.path.join('BACKEND', 'upload_folder')
-app.config['PARTIAL'] = 'upload_folder'
+# app.config['PARTIAL'] = 'upload_folder'
 app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024  #Upload Limit 20 MB
 
