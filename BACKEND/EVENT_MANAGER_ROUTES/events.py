@@ -46,6 +46,7 @@ bucket = client.bucket(bucket_name)
 # import zipfile
 import smtplib
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 
 
@@ -75,21 +76,24 @@ async def upload_to_gcs(event_folder, event_name):
     except Exception as e:
         return None, str(e)
 
-async def send_email(recipient, subject, body):
+def send_email(to_email, subject, body):
     sender_email = os.getenv("EMAIL_SENDER")
     sender_password = os.getenv("EMAIL_PASSWORD")
     
-    msg = MIMEText(body)
-    msg["Subject"] = subject
-    msg["From"] = sender_email
-    msg["To"] = recipient
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = to_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain'))
     
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 587) as server:
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, recipient, msg.as_string())
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, to_email, msg.as_string())
+        server.quit()
     except Exception as e:
-        print(f"Error sending email: {e}")
+        print(f"Failed to send email: {e}")
 
 async def process_embeddings_and_upload(event_folder, event_name):
     try:
@@ -99,7 +103,11 @@ async def process_embeddings_and_upload(event_folder, event_name):
         cloudinary_result, err = await upload_to_gcs(event_folder, event_name)
         if err:
             raise Exception(f"Error while uploading images to GCS: {err}")
-        await send_email("kanavdhanda@hotmail.com", "Event Processing Complete", f"Your event '{event_name}' has been processed and uploaded successfully.")
+        send_email(
+            "kanavdhanda@hotmail.com",
+            "Event Processing Complete",
+        f"Your event '{event_name}' has been processed and uploaded successfully.\nFile URLs:\n" + "\n".join(cloudinary_result)
+        )
     finally:
         shutil.rmtree(event_folder)  # Cleanup
 
