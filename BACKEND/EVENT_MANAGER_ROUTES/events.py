@@ -10,15 +10,21 @@ import cloudinary.uploader
 from FACE_MODEL import play
 from BACKEND.init_config import events_collection, app
 import asyncio
-from time import time
+# from time import time
+import time  # Make sure this is at the top
 
+from datetime import datetime
 
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+import aiofiles
 
 # Upload to Google
 from google.cloud import storage
-import asyncio
-import os
-import concurrent.futures
+
+
 
 
 
@@ -39,18 +45,13 @@ import concurrent.futures
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SERVICE_ACCOUNT_PATH = os.path.join(BASE_DIR, "..", "config", "serviceAccount.json")
 client = storage.Client.from_service_account_json(SERVICE_ACCOUNT_PATH)
-bucket_name = "ccs-host.appspot.com"
-bucket = client.bucket(bucket_name)
+bucket = client.bucket(os.getenv("bucket-name"))
 
 # import os
 # import asyncio
 # import shutil
 # import zipfile
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
-import aiofiles
 
 
 
@@ -196,15 +197,15 @@ import aiofiles
 #     except Exception as e:
 #         return jsonify({'error': str(e)}), 500
 
-from datetime import datetime
 
 # Initialize Flask app and Google Cloud Storage
 
 
 def log_debug(message):
     """Utility function for consistent debug logging"""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-    print(f"[DEBUG {timestamp}] {message}")
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+    print(f"[DEBUG {current_time}] {message}")
+
 
 class BackgroundTaskManager:
     def __init__(self):
@@ -398,7 +399,8 @@ async def add_new_event():
         bytes_received = 0
         chunk_size = 65536  # 64KB chunks
         
-        start_time = time.time()
+        start_time = time.time()  # Using time.time() correctly now
+        
         async with aiofiles.open(file_path, "wb") as f:
             while bytes_received < content_length:
                 chunk = await asyncio.to_thread(
@@ -410,10 +412,13 @@ async def add_new_event():
                 await f.write(chunk)
                 bytes_received += len(chunk)
                 if bytes_received % (1024 * 1024) == 0:  # Log every 1MB
-                    log_debug(f"Upload progress: {bytes_received}/{content_length} bytes ({(bytes_received/content_length)*100:.1f}%)")
+                    elapsed_time = time.time() - start_time
+                    upload_speed = bytes_received / (1024 * 1024 * elapsed_time)  # MB/s
+                    log_debug(f"Upload progress: {bytes_received}/{content_length} bytes ({(bytes_received/content_length)*100:.1f}%) - Speed: {upload_speed:.2f} MB/s")
 
         upload_time = time.time() - start_time
-        log_debug(f"File upload completed in {upload_time:.2f} seconds")
+        final_speed = (bytes_received / (1024 * 1024)) / upload_time if upload_time > 0 else 0
+        log_debug(f"File upload completed in {upload_time:.2f} seconds. Average speed: {final_speed:.2f} MB/s")
 
         if bytes_received != content_length:
             raise ValueError(f"Incomplete file upload: got {bytes_received} bytes, expected {content_length}")
@@ -456,6 +461,114 @@ async def add_new_event():
             shutil.rmtree(event_folder, ignore_errors=True)
             log_debug("Cleaned up event folder after error")
         return jsonify({'error': str(e)}), 500
+# async def add_new_event():
+#     """Handles large file uploads via streaming with improved error handling."""
+#     event_folder = None
+#     file_path = None
+    
+#     try:
+#         log_debug("Received new event upload request")
+        
+#         # Validate headers
+#         required_headers = {
+#             'X-Event-Manager-Name': 'event_manager_name',
+#             'X-Event-Name': 'event_name',
+#             'X-Description': 'description',
+#             'X-Organized-By': 'organized_by',
+#             'X-Date': 'date'
+#         }
+        
+#         event = {}
+#         for header, field in required_headers.items():
+#             value = request.headers.get(header)
+#             if not value:
+#                 log_debug(f"Missing required header: {header}")
+#                 return jsonify({'error': f'Missing required header: {header}'}), 400
+#             event[field] = value
+
+#         log_debug(f"Processing event: {event['event_name']}")
+
+#         # Check for duplicate event
+#         if events_collection.find_one({'event_manager_name': event['event_manager_name'], 
+#                                      'event_name': event['event_name']}):
+#             log_debug(f"Duplicate event found: {event['event_name']}")
+#             return jsonify({'error': 'Event already exists'}), 400
+
+#         # Create upload directory
+#         event_folder = os.path.join(app.config['UPLOAD_FOLDER'], event['event_name'])
+#         os.makedirs(event_folder, exist_ok=True)
+#         log_debug(f"Created event folder: {event_folder}")
+        
+#         file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{event['event_name']}.zip")
+
+#         # Stream file to disk
+#         content_length = request.content_length
+#         if not content_length:
+#             log_debug("Missing Content-Length header")
+#             return jsonify({'error': 'Content-Length header is required'}), 400
+        
+#         log_debug(f"Starting file upload, expected size: {content_length} bytes")
+#         bytes_received = 0
+#         chunk_size = 65536  # 64KB chunks
+        
+#         start_time = time.time()
+#         async with aiofiles.open(file_path, "wb") as f:
+#             while bytes_received < content_length:
+#                 chunk = await asyncio.to_thread(
+#                     request.environ['wsgi.input'].read,
+#                     min(chunk_size, content_length - bytes_received)
+#                 )
+#                 if not chunk:
+#                     break
+#                 await f.write(chunk)
+#                 bytes_received += len(chunk)
+#                 if bytes_received % (1024 * 1024) == 0:  # Log every 1MB
+#                     log_debug(f"Upload progress: {bytes_received}/{content_length} bytes ({(bytes_received/content_length)*100:.1f}%)")
+
+#         upload_time = time.time() - start_time
+#         log_debug(f"File upload completed in {upload_time:.2f} seconds")
+
+#         if bytes_received != content_length:
+#             raise ValueError(f"Incomplete file upload: got {bytes_received} bytes, expected {content_length}")
+
+#         # Extract and rename files
+#         log_debug("Starting file extraction and renaming")
+#         await asyncio.to_thread(extract_and_rename_files, file_path, event_folder, event['event_name'])
+        
+#         # Save event to database
+#         log_debug("Saving event to database")
+#         await asyncio.to_thread(events_collection.insert_one, event)
+        
+#         # Start background processing
+#         log_debug("Starting background processing task")
+#         await task_manager.add_task(
+#             process_embeddings_and_upload(event_folder, event['event_name'])
+#         )
+        
+#         # Clean up zip file
+#         if os.path.exists(file_path):
+#             os.remove(file_path)
+#             log_debug("Cleaned up temporary zip file")
+        
+#         log_debug("Event upload completed successfully")
+#         return jsonify({
+#             'message': 'Event added successfully. Processing in background.',
+#             'event_name': event['event_name']
+#         }), 202
+
+#     except zipfile.BadZipFile:
+#         log_debug("Invalid ZIP file uploaded")
+#         return jsonify({'error': 'Invalid ZIP file'}), 400
+#     except Exception as e:
+#         log_debug(f"Error processing event upload: {str(e)}")
+#         # Clean up on error
+#         if file_path and os.path.exists(file_path):
+#             os.remove(file_path)
+#             log_debug("Cleaned up temporary zip file after error")
+#         if event_folder and os.path.exists(event_folder):
+#             shutil.rmtree(event_folder, ignore_errors=True)
+#             log_debug("Cleaned up event folder after error")
+#         return jsonify({'error': str(e)}), 500
 
 def extract_and_rename_files(file_path, event_folder, event_name):
     """Extract zip file and rename files in one function to reduce complexity."""
