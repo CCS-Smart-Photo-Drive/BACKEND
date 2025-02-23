@@ -75,7 +75,7 @@ async def upload_to_gcs(event_folder, event_name):
     except Exception as e:
         return None, str(e)
 
-def send_email(recipient, subject, body):
+async def send_email(recipient, subject, body):
     sender_email = os.getenv("EMAIL_SENDER")
     sender_password = os.getenv("EMAIL_PASSWORD")
     
