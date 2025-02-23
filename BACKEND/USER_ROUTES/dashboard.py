@@ -48,7 +48,11 @@ import asyncio
 
 
 # Initialize Google Cloud Storage Client with Service Account
-client = storage.Client.from_service_account_json("../config/serviceAccount.json")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # Directory of this script
+SERVICE_ACCOUNT_PATH = os.path.join(BASE_DIR, "..", "config", "serviceAccount.json")
+
+# Initialize the client
+client = storage.Client.from_service_account_json(SERVICE_ACCOUNT_PATH)
 bucket_name = "ccs-host.appspot.com"
 bucket = client.bucket(bucket_name)
 
