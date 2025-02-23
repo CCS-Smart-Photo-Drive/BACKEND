@@ -53,9 +53,9 @@ async def upload_to_gcs(event_folder, event_name):
             blob = bucket.blob(blob_name)
             blob.make_public()
 
-        return urls  # Return list of public URLs
+        return urls, None  # Return list of public URLs
     except Exception as e:
-        return str(e)
+        return None,str(e)
 
 
 
@@ -137,9 +137,11 @@ async def add_new_event():
     print("BEFORE CLOUDINARY UPLOAD")
     tic_mid2 = time()
     print(tic_mid2-tic_mid)
-    cloudinary_result = await upload_to_gcs(event_folder, event_name)
-    if cloudinary_result is not True:
-        return jsonify({'error': f'Error uploading images to Cloudinary: {cloudinary_result}'}), 500
+    cloudinary_result, err = await upload_to_gcs(event_folder, event_name)
+    # if cloudinary_result is not True:
+    #     return jsonify({'error': f'Error uploading images to Cloudinary: {cloudinary_result}'}), 500
+    if err:
+        return jsonify({'error': f'Error while uploading images to GCS:{err}'}) , 500
     tic_end = time()
     print(tic_end-tic_mid2)
     try:
