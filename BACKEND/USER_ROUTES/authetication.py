@@ -7,6 +7,9 @@ from BACKEND.init_config import user_collection, app, tokens_collection
 from secrets import token_urlsafe
 import bcrypt
 import base64
+from google.cloud import storage
+import asyncio
+import os
 
 @app.route('/get_user_status', methods = ['GET'])
 def user_status():
@@ -14,6 +17,82 @@ def user_status():
         'status': g.user['is_admin']
     })
 
+
+
+def get_gcs_image_base64(user_email):
+
+
+    try:
+        storage_client = storage.Client()
+        BUCKET_NAME = "ccs-host.appspot.com"
+
+        bucket = storage_client.bucket(BUCKET_NAME)
+        prefix = f"MY_USERS/{user_email}/profile"
+        blobs = list(bucket.list_blobs(prefix=prefix))
+
+        if not blobs:
+            return None
+
+        blob = blobs[0]
+        file_extension = blob.name.split('.')[-1]
+        image_url = f"https://storage.googleapis.com/{BUCKET_NAME}/{blob.name}"
+
+        # Fetch the image
+        response = requests.get(image_url, stream=True)
+
+        if response.status_code == 200:
+            image_base64 = base64.b64encode(response.content).decode("utf-8")
+            return f"data:image/{file_extension};base64,{image_base64}"  # Return as Base64 data URL
+        else:
+            return None  # Image not found or inaccessible
+
+    except Exception as e:
+        return {"error": f"Error fetching image: {str(e)}"}, 500
+        return None
+
+def auth_user(user):
+    token = token_urlsafe(16)
+
+    try:
+        existing_user = user_collection.find_one({'email': user['email']})
+
+        if existing_user:
+            tokens_collection.insert_one({
+                'token': token,
+                'user_id': existing_user['_id']
+            })
+
+            # Fetch profile picture from GCS (handles any extension)
+            profile_picture = get_gcs_image_base64(user['email'])
+
+            return {
+                'user': {
+                    'user_name': existing_user.get('user_name', user['user_name']),
+                    'email': existing_user['email'],
+                    'profile_picture': profile_picture,
+                },
+                'token': token
+            }, 200
+
+        inserted_user = user_collection.insert_one(user)
+        new_user = user_collection.find_one({'_id': inserted_user.inserted_id})
+
+        tokens_collection.insert_one({
+            'token': token,
+            'user_id': new_user['_id']
+        })
+
+        return {
+            'user': {
+                'user_name': new_user['user_name'],
+                'email': new_user['email'],
+                'profile_picture': None  # No image available for new users
+            },
+            'token': token
+        }, 201
+
+    except Exception as e:
+        return {'error': f"Database error: {str(e)}"}, 400
 # def auth_user(user):
 #     token = token_urlsafe(16)
 
@@ -45,55 +124,56 @@ def user_status():
 
 
 
-def auth_user(user):
-    token = token_urlsafe(16)
+# def auth_user(user):
+#     token = token_urlsafe(16)
+#
+#     try:
+#         existing_user = user_collection.find_one({'email': user['email']})
+#
+#         if existing_user:
+#             tokens_collection.insert_one({
+#                 'token': token,
+#                 'user_id': existing_user['_id']
+#             })
+#             image_url = cloudinary.CloudinaryImage(f"MY_USERS/{user['email']}.jpg").build_url()
+#             response = requests.get(image_url, stream=True)
+#
+#             if response.status_code == 200:
+#                 image_base64 = base64.b64encode(response.content).decode("utf-8")
+#                 profile_picture = f"data:image/jpeg;base64,{image_base64}"
+#             else:
+#                 profile_picture = None  # Handle case where image isn't available
+#
+#             return {
+#                 'user': {
+#                     'user_name': existing_user.get('user_name', user['user_name']),
+#                     'email': existing_user['email'],
+#                     'profile_picture': profile_picture,
+#                 },
+#                 'token': token
+#             }, 200
+#
+#         # Insert new user
+#         inserted_user = user_collection.insert_one(user)
+#         new_user = user_collection.find_one({'_id': inserted_user.inserted_id})
+#
+#         tokens_collection.insert_one({
+#             'token': token,
+#             'user_id': new_user['_id']
+#         })
+#
+#         return {
+#             'user': {
+#                 'user_name': new_user['user_name'],
+#                 'email': new_user['email'],
+#                 'profile_picture': None  # No image available for new users
+#             },
+#             'token': token
+#         }, 201
+#
+#     except Exception as e:
+#         return {'error': f"Database error: {str(e)}"}, 400
 
-    try:
-        existing_user = user_collection.find_one({'email': user['email']})
-
-        if existing_user:
-            tokens_collection.insert_one({
-                'token': token,
-                'user_id': existing_user['_id']
-            })
-            image_url = cloudinary.CloudinaryImage(f"MY_USERS/{user['email']}.jpg").build_url()
-            response = requests.get(image_url, stream=True)
-
-            if response.status_code == 200:
-                image_base64 = base64.b64encode(response.content).decode("utf-8")
-                profile_picture = f"data:image/jpeg;base64,{image_base64}"
-            else:
-                profile_picture = None  # Handle case where image isn't available
-
-            return {
-                'user': {
-                    'user_name': existing_user.get('user_name', user['user_name']),
-                    'email': existing_user['email'],
-                    'profile_picture': profile_picture,
-                },
-                'token': token
-            }, 200
-
-        # Insert new user
-        inserted_user = user_collection.insert_one(user)
-        new_user = user_collection.find_one({'_id': inserted_user.inserted_id})
-
-        tokens_collection.insert_one({
-            'token': token,
-            'user_id': new_user['_id']
-        })
-
-        return {
-            'user': {
-                'user_name': new_user['user_name'],
-                'email': new_user['email'],
-                'profile_picture': None  # No image available for new users
-            },
-            'token': token
-        }, 201
-
-    except Exception as e:
-        return {'error': f"Database error: {str(e)}"}, 400
 
 @app.route('/register_user', methods = ['POST'])
 async def register_user():

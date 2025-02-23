@@ -51,6 +51,8 @@ async def upload_to_gcs(local_file_path, user_email):
         bucket = client.bucket(bucket_name)
 
         filename = os.path.basename(local_file_path)
+        filename = "profile" + os.path.splitext(local_file_path)[1]
+
         blob_name = f"MY_USERS/{user_email}/{filename}"
         blob = bucket.blob(blob_name)
 
