@@ -21,103 +21,85 @@ import os
 
 
 # Initialize Google Cloud Storage Client with Service Account
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # Directory of this script
-SERVICE_ACCOUNT_PATH = os.path.join(BASE_DIR, "..", "config", "serviceAccount.json")
+# import os
+# import asyncio
+# import shutil
+# import zipfile
+# from time import time
+# from flask import Flask, request, jsonify, g
+# from werkzeug.utils import secure_filename
+# from google.cloud import storage
 
-# Initialize the client
+# app = Flask(__name__)
+# app.config['UPLOAD_FOLDER'] = "uploads"  # Adjust as needed
+
+# Google Cloud Storage Setup
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SERVICE_ACCOUNT_PATH = os.path.join(BASE_DIR, "..", "config", "serviceAccount.json")
 client = storage.Client.from_service_account_json(SERVICE_ACCOUNT_PATH)
 bucket_name = "ccs-host.appspot.com"
 bucket = client.bucket(bucket_name)
 
-# import asyncio
-# import os
-# import zipfile
-# import shutil
-# import time
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-
-
-
-async def process_and_upload(event_folder, event_name, user_email):
-    tasks = []
-    urls = []
-
-    async def process_file(file_path, new_file_name):
-        # Generate embeddings asynchronously
-        await play.generate_event_embeddings(file_path, new_file_name)
-        
-        # Upload file to GCS
-        blob_name = f"upload_folder/{event_name}/{new_file_name}"
-        blob = bucket.blob(blob_name)
-        await asyncio.to_thread(blob.upload_from_filename, file_path)
-        blob.make_public()
-        urls.append(f"https://storage.googleapis.com/{bucket_name}/{blob_name}")
-    
+async def upload_to_gcs(event_folder, event_name):
     try:
-        for extracted_file in os.listdir(event_folder):
-            extracted_file_path = os.path.join(event_folder, extracted_file)
-            if not os.path.isfile(extracted_file_path):
-                continue
-            
-            file_ext = os.path.splitext(extracted_file)[1]
-            new_filename = f"{event_name}_{len(urls) + 1}{file_ext}"
-            new_file_path = os.path.join(event_folder, new_filename)
-            os.rename(extracted_file_path, new_file_path)
-            
-            tasks.append(process_file(new_file_path, new_filename))
+        urls = []
+        tasks = []
+        
+        for image_file in os.listdir(event_folder):
+            image_path = os.path.join(event_folder, image_file)
+            if os.path.isfile(image_path):
+                blob_name = f"upload_folder/{event_name}/{image_file}"
+                blob = bucket.blob(blob_name)
+                tasks.append(asyncio.to_thread(blob.upload_from_filename, image_path))
+                urls.append(f"https://storage.googleapis.com/{bucket_name}/{blob_name}")
         
         await asyncio.gather(*tasks)
         
-        # Cleanup after processing
-        shutil.rmtree(event_folder)
-        send_email("kanavdhanda@hotmail.com", "Event Processing Complete", "Your event files have been processed and uploaded.")
+        # Make files public
+        for blob_name in [url.replace(f"https://storage.googleapis.com/{bucket_name}/", "") for url in urls]:
+            blob = bucket.blob(blob_name)
+            blob.make_public()
+        
+        return urls, None
     except Exception as e:
-        send_email("kanavdhanda@hotmail.com", "Event Processing Failed", f"Error: {str(e)}")
+        return None, str(e)
 
-def send_email(to_email, subject, body):
-    sender_email = os.getenv("EMAIL_SENDER")
-    sender_password = os.getenv("EMAIL_PASSWORD")
-    
-    msg = MIMEMultipart()
-    msg['From'] = sender_email
-    msg['To'] = to_email
-    msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'plain'))
-    
+async def process_embeddings_and_upload(event_folder, event_name):
     try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, to_email, msg.as_string())
-        server.quit()
-    except Exception as e:
-        print(f"Failed to send email: {e}")
-
+        response = await play.generate_event_embeddings(event_folder, event_name)
+        if not response:
+            raise Exception("Error processing event embeddings")
+        cloudinary_result, err = await upload_to_gcs(event_folder, event_name)
+        if err:
+            raise Exception(f"Error while uploading images to GCS: {err}")
+    finally:
+        shutil.rmtree(event_folder)  # Cleanup
 
 @app.route('/add_new_event', methods=['POST'])
-def add_new_event():
+async def add_new_event():
     event_manager_name = g.user['user_name']
     event_name = request.form['event_name']
     description = request.form['description']
     organized_by = request.form['organized_by']
     date = request.form['date']
-    user_email = g.user['email']
 
     if not all([event_name, description, organized_by, date]):
         return jsonify({'error': 'All fields are required'}), 400
 
-    if events_collection.find_one({'event_manager_name': event_manager_name, 'event_name': event_name}):
-        return jsonify({'error': 'Event already exists'}), 400
-
-    events_collection.insert_one({
+    event = {
         'event_manager_name': event_manager_name,
         'event_name': event_name,
         'description': description,
         'organized_by': organized_by,
         'date': date
-    })
+    }
+
+    try:
+        if events_collection.find_one({'event_manager_name': event_manager_name, 'event_name': event_name}):
+            return jsonify({'error': 'Event Already exists'}), 400
+        events_collection.insert_one(event)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
 
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
@@ -129,7 +111,11 @@ def add_new_event():
     filename = secure_filename(file.filename)
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    file.save(file_path)
+    
+    try:
+        file.save(file_path)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
     event_folder = os.path.join(app.config['UPLOAD_FOLDER'], event_name)
     os.makedirs(event_folder, exist_ok=True)
@@ -140,12 +126,19 @@ def add_new_event():
     except (zipfile.BadZipFile, OSError):
         return jsonify({'error': 'Error extracting the zip file'}), 500
 
-    # Run the background task using a separate thread
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_in_executor(None, asyncio.run, process_and_upload(event_folder, event_name, user_email))
+    for idx, extracted_file in enumerate(os.listdir(event_folder), start=1):
+        extracted_file_path = os.path.join(event_folder, extracted_file)
+        if not os.path.isfile(extracted_file_path):
+            continue
+        file_ext = os.path.splitext(extracted_file)[1]
+        new_filename = f"{event_name}_{idx}{file_ext}"
+        new_file_path = os.path.join(event_folder, new_filename)
+        os.rename(extracted_file_path, new_file_path)
+    
+    asyncio.create_task(process_embeddings_and_upload(event_folder, event_name))
+    os.remove(file_path)  # Remove zip file after extraction
+    return jsonify({'message': 'Event added. Processing in background.'}), 202
 
-    return jsonify({'message': 'Event registered. Processing will continue in the background.'}), 201
 
 @app.route('/my_events', methods=['POST'])
 async def my_events():
