@@ -381,7 +381,7 @@ async def add_new_event():
         async with aiofiles.open(file_path, "wb") as f:
             chunk_size=65536
             while True:
-                chunk = await request.stream.read(chunk_size)  # Read in 8KB chunks
+                chunk = request.environ['wsgi.input'].read(chunk_size) # Read in 8KB chunks
                 if not chunk:
                     break
                 await f.write(chunk)
