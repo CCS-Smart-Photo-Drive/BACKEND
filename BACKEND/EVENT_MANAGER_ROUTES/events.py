@@ -40,6 +40,27 @@ client = storage.Client.from_service_account_json(SERVICE_ACCOUNT_PATH)
 bucket_name = "ccs-host.appspot.com"
 bucket = client.bucket(bucket_name)
 
+import os
+import asyncio
+import shutil
+import zipfile
+import smtplib
+from email.mime.text import MIMEText
+from time import time
+from flask import Flask, request, jsonify, g
+from werkzeug.utils import secure_filename
+from google.cloud import storage
+
+app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = "uploads"  # Adjust as needed
+
+# Google Cloud Storage Setup
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SERVICE_ACCOUNT_PATH = os.path.join(BASE_DIR, "..", "config", "serviceAccount.json")
+client = storage.Client.from_service_account_json(SERVICE_ACCOUNT_PATH)
+bucket_name = "ccs-host.appspot.com"
+bucket = client.bucket(bucket_name)
+
 async def upload_to_gcs(event_folder, event_name):
     try:
         urls = []
@@ -64,14 +85,31 @@ async def upload_to_gcs(event_folder, event_name):
     except Exception as e:
         return None, str(e)
 
+def send_email(recipient, subject, body):
+    sender_email = os.getenv("EMAIL_SENDER")
+    sender_password = os.getenv("EMAIL_PASSWORD")
+    
+    msg = MIMEText(body)
+    msg["Subject"] = subject
+    msg["From"] = sender_email
+    msg["To"] = recipient
+    
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 587) as server:
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, recipient, msg.as_string())
+    except Exception as e:
+        print(f"Error sending email: {e}")
+
 async def process_embeddings_and_upload(event_folder, event_name):
     try:
-        response = await play.generate_event_embeddings(event_folder, event_name)
+        response = await asyncio.to_thread(play.generate_event_embeddings, event_folder, event_name)
         if not response:
             raise Exception("Error processing event embeddings")
         cloudinary_result, err = await upload_to_gcs(event_folder, event_name)
         if err:
             raise Exception(f"Error while uploading images to GCS: {err}")
+        send_email("kanavdhanda@hotmail.com", "Event Processing Complete", f"Your event '{event_name}' has been processed and uploaded successfully.")
     finally:
         shutil.rmtree(event_folder)  # Cleanup
 
@@ -135,7 +173,7 @@ async def add_new_event():
         new_file_path = os.path.join(event_folder, new_filename)
         os.rename(extracted_file_path, new_file_path)
     
-    asyncio.create_task(process_embeddings_and_upload(event_folder, event_name))
+    asyncio.create_task(process_embeddings_and_upload(event_folder, event_name, recipient_email))
     os.remove(file_path)  # Remove zip file after extraction
     return jsonify({'message': 'Event added. Processing in background.'}), 202
 
