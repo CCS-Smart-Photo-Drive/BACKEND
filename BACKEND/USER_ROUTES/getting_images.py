@@ -27,7 +27,7 @@ async def get_gcs_image_urls(event_name, image_names):
             blob = bucket.blob(blob_name)
 
             if blob.exists():
-                image_urls.append(f"https://storage.googleapis.com/{BUCKET_NAME}/{blob_name}")
+                image_urls.append(f"https://storage.googleapis.com/{bucket_name}/{blob_name}")
             else:
                 continue  # Skip if the image doesn't exist
 
