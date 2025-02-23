@@ -40,26 +40,16 @@ client = storage.Client.from_service_account_json(SERVICE_ACCOUNT_PATH)
 bucket_name = "ccs-host.appspot.com"
 bucket = client.bucket(bucket_name)
 
-import os
-import asyncio
-import shutil
-import zipfile
+# import os
+# import asyncio
+# import shutil
+# import zipfile
 import smtplib
 from email.mime.text import MIMEText
-from time import time
-from flask import Flask, request, jsonify, g
-from werkzeug.utils import secure_filename
-from google.cloud import storage
 
-app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = "uploads"  # Adjust as needed
 
-# Google Cloud Storage Setup
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SERVICE_ACCOUNT_PATH = os.path.join(BASE_DIR, "..", "config", "serviceAccount.json")
-client = storage.Client.from_service_account_json(SERVICE_ACCOUNT_PATH)
-bucket_name = "ccs-host.appspot.com"
-bucket = client.bucket(bucket_name)
+
+
 
 async def upload_to_gcs(event_folder, event_name):
     try:
@@ -103,7 +93,7 @@ def send_email(recipient, subject, body):
 
 async def process_embeddings_and_upload(event_folder, event_name):
     try:
-        response = await asyncio.to_thread(play.generate_event_embeddings, event_folder, event_name)
+        response = await play.generate_event_embeddings(event_folder, event_name)
         if not response:
             raise Exception("Error processing event embeddings")
         cloudinary_result, err = await upload_to_gcs(event_folder, event_name)
