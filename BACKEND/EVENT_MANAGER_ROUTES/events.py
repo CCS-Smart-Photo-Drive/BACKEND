@@ -31,10 +31,6 @@ bucket = client.bucket(bucket_name)
 
 async def upload_to_gcs(event_folder, event_name):
     try:
-        client = storage.Client()  # Uses the service account JSON now
-        bucket_name = "ccs-host.appspot.com"  # Your bucket name
-        bucket = client.bucket(bucket_name)
-
         urls = []
         tasks = []
 
