@@ -18,18 +18,21 @@ from google.cloud import storage
 import asyncio
 import os
 
-# Set the environment variable to use the service account
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # Directory of this script
+
+
+
+# Google Cloud Storage setup
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SERVICE_ACCOUNT_PATH = os.path.join(BASE_DIR, "..", "config", "serviceAccount.json")
 
-# Initialize the client
-client = storage.Client.from_service_account_json(SERVICE_ACCOUNT_PATH)
+client_gcs = storage.Client.from_service_account_json(SERVICE_ACCOUNT_PATH)
 bucket_name = "ccs-host.appspot.com"
-bucket = client.bucket(bucket_name)
+bucket = client_gcs.bucket(bucket_name)
 
 async def upload_to_gcs(event_folder, event_name):
     try:
         tasks = []
+        public_urls = []
 
         for image_file in os.listdir(event_folder):
             image_path = os.path.join(event_folder, image_file)
@@ -38,56 +41,41 @@ async def upload_to_gcs(event_folder, event_name):
                 blob = bucket.blob(blob_name)
 
                 # Asynchronous upload
-                task = asyncio.to_thread(blob.upload_from_filename, image_path)
-                tasks.append(task)
+                tasks.append(asyncio.to_thread(blob.upload_from_filename, image_path))
+
+                # Make public & store URL
+                def make_public():
+                    blob.make_public()
+                    public_urls.append(blob.public_url)
+
+                tasks.append(asyncio.to_thread(make_public))
 
         await asyncio.gather(*tasks)
 
         print(f"Uploaded all images to GCS under event: {event_name}")
+        return public_urls
 
     except Exception as e:
         print(f"Error uploading files: {e}")
+        return None
 
 
-
-# Event_manager Dashboard
 @app.route('/add_new_event', methods=['POST'])
 async def add_new_event():
-    event_manager_name = g.user['user_name']
-    event_name = request.form['event_name']
-    description = request.form['description']
-    organized_by = request.form['organized_by']
+    event_name = request.form.get('event_name')
 
-    date = request.form['date']
+    if not event_name:
+        return jsonify({'error': 'Event name is required'}), 400
 
-    if not all([event_name, description, organized_by, date]):
-        return jsonify({'error': 'All fields are required'}), 400
-
-    event = {
-        'event_manager_name': event_manager_name,
-        'event_name': event_name,
-        'description': description,
-        'organized_by': organized_by,
-        'date': date
-    }
-
-    try:
-        if events_collection.find_one({'event_manager_name': event_manager_name}) and events_collection.find_one(
-                {'event_name': event_name}):
-            return jsonify({'error': 'Event Already exists'}), 400
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
-
+    # Validate file
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
 
     file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No file selected for uploading'}), 400
-
-    if not (file and file.filename.endswith('.zip')):
+    if file.filename == '' or not file.filename.endswith('.zip'):
         return jsonify({'error': 'Allowed file type is .zip'}), 400
+
+    # Secure filename & prepare paths
     filename = secure_filename(file.filename)
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -95,56 +83,50 @@ async def add_new_event():
     try:
         file.save(file_path)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': f'File save error: {str(e)}'}), 500
 
     event_folder = os.path.join(app.config['UPLOAD_FOLDER'], event_name)
     os.makedirs(event_folder, exist_ok=True)
+
     tic_start = time()
-    print(tic_start)
+
+    # Extract files
     try:
         with zipfile.ZipFile(file_path, 'r') as zip_ref:
             zip_ref.extractall(event_folder)
-    except (zipfile.BadZipFile, OSError):
-        return jsonify({'error': 'Error extracting the zip file'}), 500
+    except zipfile.BadZipFile:
+        return jsonify({'error': 'Invalid zip file'}), 500
 
-    try:
-        for idx, extracted_file in enumerate(os.listdir(event_folder), start=1):
-            extracted_file_path = os.path.join(event_folder, extracted_file)
-            if not os.path.isfile(extracted_file_path):
-                continue
-            file_ext = os.path.splitext(extracted_file)[1]
-            new_filename = f"{event_name}_{idx}{file_ext}"
-            new_file_path = os.path.join(event_folder, new_filename)
-            os.rename(extracted_file_path, new_file_path)
-    except OSError as e:
-        print(e)
-        return jsonify({'error': 'Error renaming the files'}), 500
     tic_mid = time()
-    print(tic_mid-tic_start)
-    print("BEFORE MODEL")
+    print(f"Time to extract files: {tic_mid - tic_start:.2f}s")
+
+    # Process embeddings
+    print("Processing embeddings...")
     response = await play.generate_event_embeddings(event_folder, event_name)
     if not response:
         return jsonify({'error': 'Error processing event embeddings'}), 500
-    print("BEFORE GCS UPLOAD")
+
     tic_mid2 = time()
-    print(tic_mid2-tic_mid)
-    gcs_result = await upload_to_gcs(event_folder, event_name)
-    if gcs_result is not True:
-        return jsonify({'error': f'Error uploading to GCS: {gcs_result}'}), 500
+    print(f"Time for embedding generation: {tic_mid2 - tic_mid:.2f}s")
+
+    # Upload to GCS
+    print("Uploading to GCS...")
+    gcs_urls = await upload_to_gcs(event_folder, event_name)
+    if gcs_urls is None:
+        return jsonify({'error': 'Error uploading to GCS'}), 500
 
     tic_end = time()
-    print(tic_end-tic_mid2)
+    print(f"Time for GCS upload: {tic_end - tic_mid2:.2f}s")
+
+    # Clean up local files
     try:
         shutil.rmtree(event_folder)
         os.remove(file_path)
     except OSError as e:
         return jsonify({'error': f'Error deleting local files: {str(e)}'}), 500
-    try:
-        events_collection.insert_one(event)
-    except:
-        return jsonify({'error': 'couldnt uplaod to mongo'}), 500
 
-    return jsonify({'message': 'Event successfully added and files uploaded, processed, and cleaned up'}), 201
+    return jsonify({'message': 'Event successfully added', 'image_urls': gcs_urls}), 201
+
 
 @app.route('/my_events', methods=['POST'])
 async def my_events():

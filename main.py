@@ -11,7 +11,6 @@ load_dotenv()
 
 # Convert the WSGI app to ASGI
 app = WsgiToAsgi(app)
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/BACKEND/config/serviceAccount.json"
 
 
 
