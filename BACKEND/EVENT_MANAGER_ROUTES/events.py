@@ -29,42 +29,111 @@ client = storage.Client.from_service_account_json(SERVICE_ACCOUNT_PATH)
 bucket_name = "ccs-host.appspot.com"
 bucket = client.bucket(bucket_name)
 
-async def extract_zip_async(zip_path, extract_to):
-    """Extract ZIP file asynchronously using asyncio.to_thread"""
-    return await asyncio.to_thread(zipfile.ZipFile(zip_path, 'r').extractall, extract_to)
 
-async def upload_to_gcs(event_folder, event_name):
-    """Uploads extracted files to GCS asynchronously"""
-    try:
-        urls = []
-        tasks = []
-        
-        # List files and upload them concurrently
-        for image_file in os.listdir(event_folder):
-            image_path = os.path.join(event_folder, image_file)
-            if os.path.isfile(image_path):
-                blob_name = f"upload_folder/{event_name}/{image_file}"
-                blob = bucket.blob(blob_name)
+async def extract_and_process_zip(zip_path, extract_to, event_name):
+    """Extracts files asynchronously, renames them, and uploads them to GCS."""
+    loop = asyncio.get_event_loop()
+    urls = []
+    tasks = []
+    
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        file_list = zip_ref.namelist()
+        os.makedirs(extract_to, exist_ok=True)
 
-                # Upload asynchronously
-                task = asyncio.to_thread(blob.upload_from_filename, image_path)
-                tasks.append(task)
-                urls.append(f"https://storage.googleapis.com/{bucket_name}/{blob_name}")
-
-        await asyncio.gather(*tasks)  # Upload all files concurrently
-
-        # Make all uploaded files public
-        for image_url in urls:
-            blob_name = image_url.replace(f"https://storage.googleapis.com/{bucket_name}/", "")
+        for idx, file in enumerate(file_list, start=1):
+            file_ext = os.path.splitext(file)[1]
+            new_filename = f"{event_name}_{idx}{file_ext}"
+            new_file_path = os.path.join(extract_to, new_filename)
+            
+            # Extract and rename the file
+            await loop.run_in_executor(None, zip_ref.extract, file, extract_to)
+            os.rename(os.path.join(extract_to, file), new_file_path)
+            
+            # Upload file asynchronously
+            blob_name = f"upload_folder/{event_name}/{new_filename}"
             blob = bucket.blob(blob_name)
-            blob.make_public()
-
-        return urls, None  # Return list of public URLs
-    except Exception as e:
-        return None, str(e)
+            task = asyncio.to_thread(blob.upload_from_filename, new_file_path)
+            tasks.append(task)
+            urls.append(f"https://storage.googleapis.com/{bucket_name}/{blob_name}")
+    
+    await asyncio.gather(*tasks)  # Upload all files concurrently
+    
+    # Make uploaded files public
+    for url in urls:
+        blob_name = url.replace(f"https://storage.googleapis.com/{bucket_name}/", "")
+        blob = bucket.blob(blob_name)
+        blob.make_public()
+    
+    return urls
 
 @app.route('/add_new_event', methods=['POST'])
 async def add_new_event():
+    """Handles event creation, file uploads, and processing."""
+    event_manager_name = g.user['user_name']
+    event_name = request.form['event_name']
+    description = request.form['description']
+    organized_by = request.form['organized_by']
+    date = request.form['date']
+
+    if not all([event_name, description, organized_by, date]):
+        return jsonify({'error': 'All fields are required'}), 400
+
+    event = {
+        'event_manager_name': event_manager_name,
+        'event_name': event_name,
+        'description': description,
+        'organized_by': organized_by,
+        'date': date
+    }
+
+    try:
+        if events_collection.find_one({'event_manager_name': event_manager_name, 'event_name': event_name}):
+            return jsonify({'error': 'Event Already exists'}), 400
+        events_collection.insert_one(event)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+
+    file = request.files['file']
+    if file.filename == '' or not file.filename.endswith('.zip'):
+        return jsonify({'error': 'Allowed file type is .zip'}), 400
+
+    filename = secure_filename(file.filename)
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    
+    try:
+        file.save(file_path)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    event_folder = os.path.join(app.config['UPLOAD_FOLDER'], event_name)
+    
+    tic_start = time()
+    try:
+        cloud_urls = await extract_and_process_zip(file_path, event_folder, event_name)
+    except zipfile.BadZipFile:
+        return jsonify({'error': 'Error extracting the zip file'}), 500
+    
+    tic_mid = time()
+    print(f"Time taken for extraction, renaming, and upload: {tic_mid - tic_start:.2f}s")
+
+    response = await play.generate_event_embeddings(event_folder, event_name)
+    if not response:
+        return jsonify({'error': 'Error processing event embeddings'}), 500
+
+    tic_end = time()
+    print(f"Time taken for embeddings processing: {tic_end - tic_mid:.2f}s")
+
+    try:
+        shutil.rmtree(event_folder)
+        os.remove(file_path)
+    except OSError as e:
+        return jsonify({'error': f'Error deleting local files: {str(e)}'}), 500
+
+    return jsonify({'message': 'Event successfully added and files uploaded', 'urls': cloud_urls}), 201
     """Handles event creation and file uploads"""
     event_manager_name = g.user['user_name']
     event_name = request.form['event_name']
