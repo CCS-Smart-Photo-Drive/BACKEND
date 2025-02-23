@@ -194,10 +194,19 @@ async def process_embeddings_and_upload(event_folder, event_name):
     
 #     except Exception as e:
 #         return jsonify({'error': str(e)}), 500
+from flask import Flask, request, jsonify
+import os
+import zipfile
+import shutil
+
+app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = "uploads"  # Set your upload folder
+
 @app.route('/add_new_event', methods=['POST'])
-async def add_new_event():
-    """Handles large file uploads via streaming."""
+def add_new_event():
+    """Handles large file uploads via streaming, extracts, and uploads files synchronously."""
     try:
+        # ✅ Extract headers safely
         event_manager_name = request.headers.get('X-Event-Manager-Name')
         event_name = request.headers.get('X-Event-Name')
         description = request.headers.get('X-Description')
@@ -207,46 +216,33 @@ async def add_new_event():
         if not all([event_name, description, organized_by, date]):
             return jsonify({'error': 'All fields are required'}), 400
 
-        event = {
-            'event_manager_name': event_manager_name,
-            'event_name': event_name,
-            'description': description,
-            'organized_by': organized_by,
-            'date': date
-        }
-        # ✅ **Check if event already exists in DB**
-        if events_collection.find_one({'event_manager_name': event_manager_name, 'event_name': event_name}):
-            return jsonify({'error': 'Event Already exists'}), 400
-        events_collection.insert_one(event)
+        # ✅ Ensure upload folder exists
         event_folder = os.path.join(app.config['UPLOAD_FOLDER'], event_name)
         os.makedirs(event_folder, exist_ok=True)
 
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{event_name}.zip")
 
-        # ✅ **Streaming file to disk correctly**
-        async with aiofiles.open(file_path, "wb") as f:
-            chunk_size = 64 * 1024  # 64KB per chunk (optimized for large files)
+        # ✅ **Fix Streaming File Handling (Fully Synchronous)**
+        with open(file_path, "wb") as f:
+            chunk_size = 65536  # Read in 64KB chunks
             while True:
-                chunk = await request.stream.read(chunk_size)  # Read chunks asynchronously
+                chunk = request.stream.read(chunk_size)  # ✅ Flask's correct streaming method
                 if not chunk:
                     break
-                await f.write(chunk)  # Write chunk asynchronously
+                f.write(chunk)  # ✅ Correctly writing in chunks
 
-        # ✅ **Ensure file exists and is not empty**
+        # ✅ **Ensure file is completely written before extraction**
         if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
             return jsonify({'error': 'Uploaded file is empty or missing'}), 400
 
-        # ✅ **Extract ZIP asynchronously**
-        async def extract_zip():
-            try:
-                with zipfile.ZipFile(file_path, 'r') as zip_ref:
-                    zip_ref.extractall(event_folder)
-            except zipfile.BadZipFile:
-                return jsonify({'error': 'Invalid ZIP file'}), 400
+        # ✅ **Extract zip file**
+        try:
+            with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                zip_ref.extractall(event_folder)
+        except zipfile.BadZipFile:
+            return jsonify({'error': 'Invalid ZIP file'}), 400
 
-        await asyncio.to_thread(extract_zip)
-
-        # ✅ **Rename extracted files for consistency**
+        # ✅ **Rename extracted files**
         for idx, extracted_file in enumerate(os.listdir(event_folder), start=1):
             extracted_file_path = os.path.join(event_folder, extracted_file)
             if not os.path.isfile(extracted_file_path):
@@ -255,13 +251,118 @@ async def add_new_event():
             new_filename = f"{event_name}_{idx}{file_ext}"
             os.rename(extracted_file_path, os.path.join(event_folder, new_filename))
 
+        # ✅ **Insert event into database**
+        if events_collection.find_one({'event_manager_name': event_manager_name, 'event_name': event_name}):
+            return jsonify({'error': 'Event already exists'}), 400
+        events_collection.insert_one({
+            'event_manager_name': event_manager_name,
+            'event_name': event_name,
+            'description': description,
+            'organized_by': organized_by,
+            'date': date
+        })
 
+        # ✅ **Process embeddings and upload files (Synchronous)**
+        response = play.generate_event_embeddings(event_folder, event_name)
+        if not response:
+            return jsonify({'error': 'Error processing event embeddings'}), 500
 
-        # ✅ **Start background processing**
-        asyncio.create_task(process_embeddings_and_upload(event_folder, event_name))
+        urls, err = upload_to_gcs(event_folder, event_name)
+        if err:
+            return jsonify({'error': f'Error while uploading images: {err}'}), 500
 
-        os.remove(file_path)  # Cleanup: Remove the ZIP file after extraction
-        return jsonify({'message': 'Event added. Processing in background.'}), 202
+        send_email(
+            "kanavdhanda@hotmail.com",
+            "Event Processing Complete",
+            f"Your event '{event_name}' has been processed and uploaded successfully.\nFile URLs:\n" + "\n".join(urls)
+        )
+
+        os.remove(file_path)  # ✅ Delete zip file after extraction
+        shutil.rmtree(event_folder)  # ✅ Clean up extracted folder
+
+        return jsonify({'message': 'Event added and processed successfully.'}), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+@app.route('/add_new_event', methods=['POST'])
+def add_new_event():
+    """Handles large file uploads via streaming, extracts, and uploads files synchronously."""
+    try:
+        # ✅ Extract headers safely
+        event_manager_name = request.headers.get('X-Event-Manager-Name')
+        event_name = request.headers.get('X-Event-Name')
+        description = request.headers.get('X-Description')
+        organized_by = request.headers.get('X-Organized-By')
+        date = request.headers.get('X-Date')
+
+        if not all([event_name, description, organized_by, date]):
+            return jsonify({'error': 'All fields are required'}), 400
+
+        # ✅ Ensure upload folder exists
+        event_folder = os.path.join(app.config['UPLOAD_FOLDER'], event_name)
+        os.makedirs(event_folder, exist_ok=True)
+
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{event_name}.zip")
+
+        # ✅ **Fix Streaming File Handling (Fully Synchronous)**
+        with open(file_path, "wb") as f:
+            chunk_size = 65536  # Read in 64KB chunks
+            while True:
+                chunk = request.stream.read(chunk_size)  # ✅ Flask's correct streaming method
+                if not chunk:
+                    break
+                f.write(chunk)  # ✅ Correctly writing in chunks
+
+        # ✅ **Ensure file is completely written before extraction**
+        if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
+            return jsonify({'error': 'Uploaded file is empty or missing'}), 400
+
+        # ✅ **Extract zip file**
+        try:
+            with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                zip_ref.extractall(event_folder)
+        except zipfile.BadZipFile:
+            return jsonify({'error': 'Invalid ZIP file'}), 400
+
+        # ✅ **Rename extracted files**
+        for idx, extracted_file in enumerate(os.listdir(event_folder), start=1):
+            extracted_file_path = os.path.join(event_folder, extracted_file)
+            if not os.path.isfile(extracted_file_path):
+                continue
+            file_ext = os.path.splitext(extracted_file)[1]
+            new_filename = f"{event_name}_{idx}{file_ext}"
+            os.rename(extracted_file_path, os.path.join(event_folder, new_filename))
+
+        # ✅ **Insert event into database**
+        if events_collection.find_one({'event_manager_name': event_manager_name, 'event_name': event_name}):
+            return jsonify({'error': 'Event already exists'}), 400
+        events_collection.insert_one({
+            'event_manager_name': event_manager_name,
+            'event_name': event_name,
+            'description': description,
+            'organized_by': organized_by,
+            'date': date
+        })
+
+        # ✅ **Process embeddings and upload files (Synchronous)**
+        response = play.generate_event_embeddings(event_folder, event_name)
+        if not response:
+            return jsonify({'error': 'Error processing event embeddings'}), 500
+
+        urls, err = upload_to_gcs(event_folder, event_name)
+        if err:
+            return jsonify({'error': f'Error while uploading images: {err}'}), 500
+
+        send_email(
+            "kanavdhanda@hotmail.com",
+            "Event Processing Complete",
+            f"Your event '{event_name}' has been processed and uploaded successfully.\nFile URLs:\n" + "\n".join(urls)
+        )
+
+        os.remove(file_path)  # ✅ Delete zip file after extraction
+        shutil.rmtree(event_folder)  # ✅ Clean up extracted folder
+
+        return jsonify({'message': 'Event added and processed successfully.'}), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
