@@ -4,18 +4,35 @@ import asyncio
 import multiprocessing
 
 
+# def process_image(image_path):
+#     try:
+#         image = cv2.imread(image_path)
+#         img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+#         event_image_embeddings = face_recognition.face_encodings(img)
+#
+#         if event_image_embeddings:
+#             return os.path.basename(image_path), [embedding.tolist() for embedding in event_image_embeddings]
+#     except Exception as e:
+#         print(f"Error processing {image_path}: {e}")
+#
+#     return None
+
 def process_image(image_path):
     try:
         image = cv2.imread(image_path)
+        if image is None:
+            raise ValueError("Image could not be read")
+
         img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         event_image_embeddings = face_recognition.face_encodings(img)
 
         if event_image_embeddings:
             return os.path.basename(image_path), [embedding.tolist() for embedding in event_image_embeddings]
+
     except Exception as e:
         print(f"Error processing {image_path}: {e}")
 
-    return None
+    return (image_path, None)  # Ensure a tuple is always returned
 
 async def generate_event_embeddings(image_folder, event_name):
     json_path = 'FACE_MODEL/event_photo_embedding.json'
@@ -38,8 +55,7 @@ async def generate_event_embeddings(image_folder, event_name):
     with multiprocessing.Pool(num_workers) as pool:
         results = await asyncio.get_running_loop().run_in_executor(None, lambda: pool.map(process_image, image_file_names))
 
-    # Remove None values
-    filtered_results = {img: emb for img, emb in results if img and emb}
+    filtered_results = {img: emb for res in results if res is not None for img, emb in [res]}
 
     if not filtered_results:
         print("No valid embeddings generated.")
