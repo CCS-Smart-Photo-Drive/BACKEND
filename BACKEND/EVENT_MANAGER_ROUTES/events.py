@@ -95,84 +95,152 @@ def send_email(to_email, subject, body):
     except Exception as e:
         print(f"Failed to send email: {e}")
 
+# async def process_embeddings_and_upload(event_folder, event_name):
+#     try:
+#         response = await play.generate_event_embeddings(event_folder, event_name)
+#         if not response:
+#             raise Exception("Error processing event embeddings")
+#         cloudinary_result, err = await upload_to_gcs(event_folder, event_name)
+#         if err:
+#             raise Exception(f"Error while uploading images to GCS: {err}")
+#         send_email(
+#             "kanavdhanda@hotmail.com",
+#             "Event Processing Complete",
+#         f"Your event '{event_name}' has been processed and uploaded successfully.\nFile URLs:\n" + "\n".join(cloudinary_result)
+#         )
+#     finally:
+#         shutil.rmtree(event_folder)  # Cleanup
+
+# @app.route('/add_new_event', methods=['POST'])
+# async def add_new_event():
+#     event_manager_name = g.user['user_name']
+#     event_name = request.form['event_name']
+#     description = request.form['description']
+#     organized_by = request.form['organized_by']
+#     date = request.form['date']
+
+#     if not all([event_name, description, organized_by, date]):
+#         return jsonify({'error': 'All fields are required'}), 400
+
+#     event = {
+#         'event_manager_name': event_manager_name,
+#         'event_name': event_name,
+#         'description': description,
+#         'organized_by': organized_by,
+#         'date': date
+#     }
+
+#     try:
+#         if events_collection.find_one({'event_manager_name': event_manager_name, 'event_name': event_name}):
+#             return jsonify({'error': 'Event Already exists'}), 400
+#         events_collection.insert_one(event)
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 400
+
+#     if 'file' not in request.files:
+#         return jsonify({'error': 'No file part'}), 400
+
+#     file = request.files['file']
+#     if file.filename == '' or not file.filename.endswith('.zip'):
+#         return jsonify({'error': 'Allowed file type is .zip'}), 400
+
+#     filename = secure_filename(file.filename)
+#     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+#     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    
+#     try:
+#         file.save(file_path)
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
+
+#     event_folder = os.path.join(app.config['UPLOAD_FOLDER'], event_name)
+#     os.makedirs(event_folder, exist_ok=True)
+
+#     try:
+#         with zipfile.ZipFile(file_path, 'r') as zip_ref:
+#             zip_ref.extractall(event_folder)
+#     except (zipfile.BadZipFile, OSError):
+#         return jsonify({'error': 'Error extracting the zip file'}), 500
+
+#     for idx, extracted_file in enumerate(os.listdir(event_folder), start=1):
+#         extracted_file_path = os.path.join(event_folder, extracted_file)
+#         if not os.path.isfile(extracted_file_path):
+#             continue
+#         file_ext = os.path.splitext(extracted_file)[1]
+#         new_filename = f"{event_name}_{idx}{file_ext}"
+#         new_file_path = os.path.join(event_folder, new_filename)
+#         os.rename(extracted_file_path, new_file_path)
+    
+#     asyncio.create_task(process_embeddings_and_upload(event_folder, event_name))
+#     os.remove(file_path)  # Remove zip file after extraction
+#     return jsonify({'message': 'Event added. Processing in background.'}), 202
+
 async def process_embeddings_and_upload(event_folder, event_name):
+    """Background task to generate embeddings and upload files to GCS."""
     try:
         response = await play.generate_event_embeddings(event_folder, event_name)
         if not response:
             raise Exception("Error processing event embeddings")
-        cloudinary_result, err = await upload_to_gcs(event_folder, event_name)
+        
+        urls, err = await upload_to_gcs(event_folder, event_name)
         if err:
             raise Exception(f"Error while uploading images to GCS: {err}")
         send_email(
             "kanavdhanda@hotmail.com",
             "Event Processing Complete",
-        f"Your event '{event_name}' has been processed and uploaded successfully.\nFile URLs:\n" + "\n".join(cloudinary_result)
+        f"Your event '{event_name}' has been processed and uploaded successfully.\nFile URLs:\n" + "\n".join(urls)
         )
     finally:
         shutil.rmtree(event_folder)  # Cleanup
 
 @app.route('/add_new_event', methods=['POST'])
 async def add_new_event():
+    """Handles large file uploads via streaming."""
     event_manager_name = g.user['user_name']
-    event_name = request.form['event_name']
-    description = request.form['description']
-    organized_by = request.form['organized_by']
-    date = request.form['date']
+    event_name = request.form.get('event_name')
+    description = request.form.get('description')
+    organized_by = request.form.get('organized_by')
+    date = request.form.get('date')
 
     if not all([event_name, description, organized_by, date]):
         return jsonify({'error': 'All fields are required'}), 400
 
-    event = {
-        'event_manager_name': event_manager_name,
-        'event_name': event_name,
-        'description': description,
-        'organized_by': organized_by,
-        'date': date
-    }
-
-    try:
-        if events_collection.find_one({'event_manager_name': event_manager_name, 'event_name': event_name}):
-            return jsonify({'error': 'Event Already exists'}), 400
-        events_collection.insert_one(event)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
-
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
-
-    file = request.files['file']
-    if file.filename == '' or not file.filename.endswith('.zip'):
-        return jsonify({'error': 'Allowed file type is .zip'}), 400
-
-    filename = secure_filename(file.filename)
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    
-    try:
-        file.save(file_path)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
     event_folder = os.path.join(app.config['UPLOAD_FOLDER'], event_name)
     os.makedirs(event_folder, exist_ok=True)
 
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{event_name}.zip")
+
+    # ✅ **Streaming file to disk**
+    try:
+        with open(file_path, "wb") as f:
+            while True:
+                chunk = request.stream.read(4096)  # Read in chunks of 4KB
+                if not chunk:
+                    break
+                f.write(chunk)
+    except Exception as e:
+        return jsonify({'error': f'Error saving file: {str(e)}'}), 500
+
+    # ✅ **Extract zip file**
     try:
         with zipfile.ZipFile(file_path, 'r') as zip_ref:
             zip_ref.extractall(event_folder)
-    except (zipfile.BadZipFile, OSError):
-        return jsonify({'error': 'Error extracting the zip file'}), 500
+    except zipfile.BadZipFile:
+        return jsonify({'error': 'Invalid ZIP file'}), 400
 
+    # ✅ **Rename extracted files**
     for idx, extracted_file in enumerate(os.listdir(event_folder), start=1):
         extracted_file_path = os.path.join(event_folder, extracted_file)
         if not os.path.isfile(extracted_file_path):
             continue
         file_ext = os.path.splitext(extracted_file)[1]
         new_filename = f"{event_name}_{idx}{file_ext}"
-        new_file_path = os.path.join(event_folder, new_filename)
-        os.rename(extracted_file_path, new_file_path)
-    
+        os.rename(extracted_file_path, os.path.join(event_folder, new_filename))
+
+    # ✅ **Start background processing**
     asyncio.create_task(process_embeddings_and_upload(event_folder, event_name))
-    os.remove(file_path)  # Remove zip file after extraction
+
+    os.remove(file_path)  # Delete zip file after extraction
     return jsonify({'message': 'Event added. Processing in background.'}), 202
 
 
