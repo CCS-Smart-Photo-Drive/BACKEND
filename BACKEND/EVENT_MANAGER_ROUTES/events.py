@@ -99,7 +99,7 @@ async def process_embeddings_and_upload(event_folder, event_name):
         cloudinary_result, err = await upload_to_gcs(event_folder, event_name)
         if err:
             raise Exception(f"Error while uploading images to GCS: {err}")
-        send_email("kanavdhanda@hotmail.com", "Event Processing Complete", f"Your event '{event_name}' has been processed and uploaded successfully.")
+        await send_email("kanavdhanda@hotmail.com", "Event Processing Complete", f"Your event '{event_name}' has been processed and uploaded successfully.")
     finally:
         shutil.rmtree(event_folder)  # Cleanup
 
