@@ -16,7 +16,7 @@ def auth_admin(user):
                 'user_id': existing_user['_id']
             })
             return {'user': {
-                'event_manager_name': existing_user['event_manager_name'],
+                'user_name': existing_user['event_manager_name'],
                 'email': existing_user['email'],
             }, 'token': token}, 200
         user = event_manager_collection.insert_one(user)
