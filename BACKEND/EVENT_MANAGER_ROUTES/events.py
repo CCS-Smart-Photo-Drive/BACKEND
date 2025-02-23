@@ -313,7 +313,7 @@ def send_email_sync(msg, sender_email, sender_password, to_email):
         server.sendmail(sender_email, to_email, msg.as_string())
     log_debug("SMTP connection closed")
 
-async def process_embeddings_and_upload(event_folder, event_name):
+async def process_embeddings_and_upload(event_folder, event_name, email_receiver):
     """Background task to generate embeddings and upload files to GCS."""
     try:
         log_debug(f"Starting background processing for event: {event_name}")
@@ -332,7 +332,7 @@ async def process_embeddings_and_upload(event_folder, event_name):
         
         log_debug("Sending success notification email")
         await send_email_async(
-            "kanavdhanda@hotmail.com",
+            email_receiver,
             "Event Processing Complete",
             f"Your event '{event_name}' has been processed and uploaded successfully.\nFile URLs:\n" + "\n".join(urls)
         )
@@ -363,6 +363,7 @@ async def add_new_event():
             'X-Event-Name': 'event_name',
             'X-Description': 'description',
             'X-Organized-By': 'organized_by',
+            'X-Event-Manager-Email': 'event_manager_email',
             'X-Date': 'date'
         }
         
@@ -433,9 +434,8 @@ async def add_new_event():
         
         # Start background processing
         log_debug("Starting background processing task")
-        print(f"{event_folder}")
         await task_manager.add_task(
-            process_embeddings_and_upload(event_folder, event['event_name'])
+            process_embeddings_and_upload(event_folder, event['event_name'], event['event_manager_email'])
         )
         
         # Clean up zip file
