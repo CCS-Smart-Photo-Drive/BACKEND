@@ -48,7 +48,6 @@ def get_gcs_image_base64(user_email):
 
     except Exception as e:
         return {"error": f"Error fetching image: {str(e)}"}, 500
-        return None
 
 def auth_user(user):
     token = token_urlsafe(16)
