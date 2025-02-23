@@ -18,6 +18,8 @@ from time import time
 from google.cloud import storage
 import asyncio
 import os
+import concurrent.futures
+
 
 
 # Initialize Google Cloud Storage Client with Service Account
@@ -244,7 +246,6 @@ async def process_embeddings_and_upload(event_folder, event_name):
 
 #     os.remove(file_path)  # Delete zip file after extraction
 #     return jsonify({'message': 'Event added. Processing in background.'}), 202
-@app.route('/add_new_event', methods=['POST'])
 # async def add_new_event():
 #     """Handles large file uploads via streaming."""
 
@@ -299,61 +300,123 @@ async def process_embeddings_and_upload(event_folder, event_name):
 #     os.remove(file_path)  # Delete zip file after extraction
 #     return jsonify({'message': 'Event added. Processing in background.'}), 202
 @app.route('/add_new_event', methods=['POST'])
-def add_new_event():
+# def add_new_event():
+#     """Handles large file uploads via streaming."""
+#     event_manager_name = g.user['user_name']
+#     event_name = request.form.get('event_name')
+#     description = request.form.get('description')
+#     organized_by = request.form.get('organized_by')
+#     date = request.form.get('date')
+
+#     if not all([event_name, description, organized_by, date]):
+#         return jsonify({'error': 'All fields are required'}), 400
+
+#     event_folder = os.path.join(app.config['UPLOAD_FOLDER'], event_name)
+#     os.makedirs(event_folder, exist_ok=True)
+
+#     file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{event_name}.zip")
+
+#     # ✅ **Streaming file to disk correctly**
+#     async def save_file():
+#         try:
+#             async with aiofiles.open(file_path, "wb") as f:
+#                 while True:
+#                     chunk = await request.stream.read(4096)  # Read in chunks of 4KB
+#                     if not chunk:
+#                         break
+#                     await f.write(chunk)
+#         except Exception as e:
+#             return jsonify({'error': f'Error saving file: {str(e)}'}), 500
+
+#     async_to_sync(save_file)()  # Run async function synchronously
+
+#     # ✅ **Ensure file is completely written before extraction**
+#     if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
+#         return jsonify({'error': 'Uploaded file is empty or missing'}), 400
+
+#     # ✅ **Extract zip file**
+#     try:
+#         with zipfile.ZipFile(file_path, 'r') as zip_ref:
+#             zip_ref.extractall(event_folder)
+#     except zipfile.BadZipFile:
+#         return jsonify({'error': 'Invalid ZIP file'}), 400
+
+#     # ✅ **Rename extracted files**
+#     for idx, extracted_file in enumerate(os.listdir(event_folder), start=1):
+#         extracted_file_path = os.path.join(event_folder, extracted_file)
+#         if not os.path.isfile(extracted_file_path):
+#             continue
+#         file_ext = os.path.splitext(extracted_file)[1]
+#         new_filename = f"{event_name}_{idx}{file_ext}"
+#         os.rename(extracted_file_path, os.path.join(event_folder, new_filename))
+
+#     # ✅ **Start background processing**
+#     asyncio.create_task(process_embeddings_and_upload(event_folder, event_name))
+
+#     os.remove(file_path)  # Delete zip file after extraction
+#     return jsonify({'message': 'Event added. Processing in background.'}), 202
+
+
+
+@app.route('/add_new_event', methods=['POST'])
+async def add_new_event():
     """Handles large file uploads via streaming."""
-    event_manager_name = g.user['user_name']
-    event_name = request.form.get('event_name')
-    description = request.form.get('description')
-    organized_by = request.form.get('organized_by')
-    date = request.form.get('date')
-
-    if not all([event_name, description, organized_by, date]):
-        return jsonify({'error': 'All fields are required'}), 400
-
-    event_folder = os.path.join(app.config['UPLOAD_FOLDER'], event_name)
-    os.makedirs(event_folder, exist_ok=True)
-
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{event_name}.zip")
-
-    # ✅ **Streaming file to disk correctly**
-    async def save_file():
-        try:
-            async with aiofiles.open(file_path, "wb") as f:
-                while True:
-                    chunk = await request.stream.read(4096)  # Read in chunks of 4KB
-                    if not chunk:
-                        break
-                    await f.write(chunk)
-        except Exception as e:
-            return jsonify({'error': f'Error saving file: {str(e)}'}), 500
-
-    async_to_sync(save_file)()  # Run async function synchronously
-
-    # ✅ **Ensure file is completely written before extraction**
-    if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
-        return jsonify({'error': 'Uploaded file is empty or missing'}), 400
-
-    # ✅ **Extract zip file**
     try:
-        with zipfile.ZipFile(file_path, 'r') as zip_ref:
-            zip_ref.extractall(event_folder)
-    except zipfile.BadZipFile:
-        return jsonify({'error': 'Invalid ZIP file'}), 400
+        event_manager_name = g.user['user_name']
+        event_name = request.headers.get('X-Event-Name')
+        description = request.headers.get('X-Description')
+        organized_by = request.headers.get('X-Organized-By')
+        date = request.headers.get('X-Date')
 
-    # ✅ **Rename extracted files**
-    for idx, extracted_file in enumerate(os.listdir(event_folder), start=1):
-        extracted_file_path = os.path.join(event_folder, extracted_file)
-        if not os.path.isfile(extracted_file_path):
-            continue
-        file_ext = os.path.splitext(extracted_file)[1]
-        new_filename = f"{event_name}_{idx}{file_ext}"
-        os.rename(extracted_file_path, os.path.join(event_folder, new_filename))
+        if not all([event_name, description, organized_by, date]):
+            return jsonify({'error': 'All fields are required'}), 400
 
-    # ✅ **Start background processing**
-    asyncio.create_task(process_embeddings_and_upload(event_folder, event_name))
+        event_folder = os.path.join(app.config['UPLOAD_FOLDER'], event_name)
+        os.makedirs(event_folder, exist_ok=True)
 
-    os.remove(file_path)  # Delete zip file after extraction
-    return jsonify({'message': 'Event added. Processing in background.'}), 202
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{event_name}.zip")
+
+        # ✅ **Streaming file to disk correctly**
+        async with aiofiles.open(file_path, "wb") as f:
+            chunk_size=65536
+            while True:
+                chunk = await request.stream.read(chunk_size)  # Read in 8KB chunks
+                if not chunk:
+                    break
+                await f.write(chunk)
+
+        # ✅ **Ensure file is completely written before extraction**
+        if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
+            return jsonify({'error': 'Uploaded file is empty or missing'}), 400
+
+        # ✅ **Extract zip file**
+        try:
+            def extract_zip(file_path, event_folder):
+                with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                    zip_ref.extractall(event_folder)
+
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, extract_zip, file_path, event_folder)
+        except zipfile.BadZipFile:
+            return jsonify({'error': 'Invalid ZIP file'}), 400
+
+        # ✅ **Rename extracted files**
+        for idx, extracted_file in enumerate(os.listdir(event_folder), start=1):
+            extracted_file_path = os.path.join(event_folder, extracted_file)
+            if not os.path.isfile(extracted_file_path):
+                continue
+            file_ext = os.path.splitext(extracted_file)[1]
+            new_filename = f"{event_name}_{idx}{file_ext}"
+            os.rename(extracted_file_path, os.path.join(event_folder, new_filename))
+
+        # ✅ **Start background processing**
+        asyncio.create_task(process_embeddings_and_upload(event_folder, event_name))
+
+        os.remove(file_path)  # Delete zip file after extraction
+        return jsonify({'message': 'Event added. Processing in background.'}), 202
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/my_events', methods=['POST'])
 async def my_events():
