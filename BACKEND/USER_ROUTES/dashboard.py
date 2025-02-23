@@ -63,7 +63,7 @@ async def upload_to_gcs(local_file_path, user_email):
         random_filename = f"profile_{uuid.uuid4().hex}{ext}"
 
         # Define blob path
-        blob_name = f"MY_USERS/{user_email}/{random_filename}"
+        blob_name = f"upload_folder/users/{user_email}/{random_filename}"
         blob = bucket.blob(blob_name)
 
         # Asynchronous upload
@@ -71,7 +71,7 @@ async def upload_to_gcs(local_file_path, user_email):
 
         # Make the file public
         blob.make_public()
-
+        print(blob.public_url)
         # Return public URL
         return blob.public_url
 
@@ -103,6 +103,7 @@ async def user_my_dashboard():
             public_url, error = await upload_to_gcs(file_path, user_email)
             if public_url:
                 os.remove(file_path)
+                print(public_url)
                 return jsonify({'success': 'File uploaded', 'url': public_url}), 200
             else:
                 return jsonify({'error': f'GCS upload failed: {error}'}), 500
