@@ -661,19 +661,15 @@ async def init_upload():
 
 @app.route('/upload_chunk/<file_id>', methods=['POST'])
 async def upload_chunk(file_id):
-    """Handle individual chunk uploads"""
     try:
-        session = upload_sessions.get(file_id)
-        if not session:
-            return jsonify({'error': 'Upload session not found'}), 404
+        if file_id not in upload_sessions:
+            return jsonify({"error": "Invalid file ID"}), 400
 
-        if session.is_expired():
-            cleanup_session(file_id)
-            return jsonify({'error': 'Upload session expired'}), 410
-
+        session = upload_sessions[file_id]
         chunk_index = int(request.headers.get('X-Chunk-Index', -1))
-        if chunk_index < 0:
-            return jsonify({'error': 'Missing chunk index'}), 400
+
+        if chunk_index < 0 or chunk_index >= session.expected_chunks:
+            return jsonify({"error": "Invalid chunk index"}), 400
 
         if chunk_index in session.received_chunks:
             return jsonify({'message': 'Chunk already received', 'chunkIndex': chunk_index}), 200

@@ -80,6 +80,7 @@ event_manager_collection = mongo.db.events_manager
 events_collection = mongo.db.events
 images_collection = mongo.db.images
 tokens_collection = mongo.db.tokens
+profile_image_collection = mongo.db.profileUrls
 
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY")
 app.config['UPLOAD_FOLDER'] = os.path.join('BACKEND', 'upload_folder')

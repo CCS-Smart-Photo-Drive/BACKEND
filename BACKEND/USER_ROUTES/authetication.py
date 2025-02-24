@@ -3,7 +3,7 @@ import os
 import cloudinary
 import requests
 from flask import  request, jsonify, g
-from BACKEND.init_config import user_collection, app, tokens_collection
+from BACKEND.init_config import user_collection, app, tokens_collection, profile_image_collection
 from secrets import token_urlsafe
 import bcrypt
 import base64
@@ -23,19 +23,9 @@ def get_gcs_image_base64(user_email):
 
 
     try:
-        storage_client = storage.Client()
-        BUCKET_NAME = "ccs-host.appspot.com"
-
-        bucket = storage_client.bucket(BUCKET_NAME)
-        prefix = f"MY_USERS/{user_email}/profile"
-        blobs = list(bucket.list_blobs(prefix=prefix))
-
-        if not blobs:
-            return None
-
-        blob = blobs[0]
-        file_extension = blob.name.split('.')[-1]
-        image_url = f"https://storage.googleapis.com/{BUCKET_NAME}/{blob.name}"
+        user_images = profile_image_collection.find_one({'email': user_email})
+        if user_images:
+            image_url = user_images.get("url")
 
         # Fetch the image
         response = requests.get(image_url, stream=True)
