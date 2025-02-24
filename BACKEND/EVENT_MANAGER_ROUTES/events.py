@@ -575,9 +575,9 @@ async def process_embeddings_and_upload(event_folder, event_name, email_receiver
 
 
 
-CHUNK_FOLDER = os.path.join(UPLOAD_FOLDER, "chunks")
+CHUNK_FOLDER = os.path.join(app.config['UPLOAD_FOLDER'], "chunks")
 
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(CHUNK_FOLDER, exist_ok=True)
 
 
