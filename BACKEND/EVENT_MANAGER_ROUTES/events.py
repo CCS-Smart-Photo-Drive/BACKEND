@@ -490,17 +490,13 @@ class UploadSession:
         self.expected_chunks = chunks
         self.created_at = datetime.now()
         self.temp_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'temp', file_id)
-        self.chunks_writing = 0  # Fix: Initialize chunks_writing to track active writes
-        self.lock = asyncio.Lock()  # Prevent concurrent modification issues
         os.makedirs(self.temp_dir, exist_ok=True)
 
     def is_expired(self):
         return datetime.now() - self.created_at > timedelta(hours=UPLOAD_EXPIRY_HOURS)
 
     def is_complete(self):
-        """Check if all chunks have been received and written"""
-        return len(self.received_chunks) == self.expected_chunks and self.chunks_writing == 0
-
+        return len(self.received_chunks) == self.expected_chunks
 
 
 # In-memory storage for upload sessions
@@ -566,68 +562,36 @@ async def init_upload():
 
 
 
-
 @app.route('/upload_chunk/<file_id>', methods=['POST'])
 async def upload_chunk(file_id):
-    """Handle individual chunk uploads"""
     try:
-        session = upload_sessions.get(file_id)
-        if not session:
-            return jsonify({'error': 'Upload session not found'}), 404
+        if file_id not in upload_sessions:
+            return jsonify({"error": "Invalid file ID"}), 400
 
-        if session.is_expired():
-            cleanup_session(file_id)
-            return jsonify({'error': 'Upload session expired'}), 410
-
+        session = upload_sessions[file_id]
         chunk_index = int(request.headers.get('X-Chunk-Index', -1))
-        if chunk_index < 0:
-            return jsonify({'error': 'Missing chunk index'}), 400
+
+        if chunk_index < 0 or chunk_index >= session.expected_chunks:
+            return jsonify({"error": "Invalid chunk index"}), 400
 
         if chunk_index in session.received_chunks:
-            return jsonify({'message': 'Chunk already received', 'chunkIndex': chunk_index}), 200
+            return jsonify({"message": "Chunk already received"}), 200
 
-        chunk_data = request.get_data()
-        if not chunk_data:
-            return jsonify({'error': 'Empty chunk received'}), 400
+        chunk_data = await request.get_data()
 
-        chunk_file = os.path.join(session.temp_dir, f'chunk_{chunk_index}')
+        if len(chunk_data) > CHUNK_SIZE:
+            return jsonify({"error": "Chunk size exceeds limit"}), 400
 
-        async with session.lock:
-            session.chunks_writing += 1  # Start tracking an active write
+        chunk_path = os.path.join(session.temp_dir, f"chunk_{chunk_index}.part")
+        with open(chunk_path, 'wb') as chunk_file:
+            chunk_file.write(chunk_data)
 
-        try:
-            async with aiofiles.open(chunk_file, 'wb') as f:
-                await f.write(chunk_data)
+        session.received_chunks.add(chunk_index)
 
-            async with session.lock:
-                session.received_chunks.add(chunk_index)  # Add chunk after writing
-
-        finally:
-            async with session.lock:
-                session.chunks_writing -= 1  # Decrement after write completes
-
-        async with session.lock:
-            if session.is_complete():  # Ensure all chunks are written before marking complete
-                response = jsonify({
-                    'message': 'Upload complete, processing started',
-                    'event_name': session.metadata['event_name']
-                }), 202
-
-                asyncio.create_task(handle_upload_completion(session))
-                return response
-
-        return jsonify({
-            'message': 'Chunk received',
-            'chunkIndex': chunk_index,
-            'remainingChunks': session.expected_chunks - len(session.received_chunks)
-        }), 200
+        return jsonify({"message": "Chunk uploaded successfully"}), 200
 
     except Exception as e:
-        async with session.lock:
-            session.chunks_writing -= 1  # Ensure decrement on error
-        log_debug(f"Error uploading chunk: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
+        return jsonify({"error": str(e)}), 500
 
 async def handle_upload_completion(session):
     """Handle the upload completion after response is sent"""
@@ -807,3 +771,31 @@ async def complete_upload(file_id):
     asyncio.create_task(handle_upload_completion(session))  # Start processing
 
     return response
+
+@app.route('/finalize_upload/<file_id>', methods=['POST'])
+async def finalize_upload(file_id):
+    try:
+        # Retrieve session
+        session = upload_sessions.get(file_id)
+        if not session:
+            return jsonify({"error": "Invalid file ID"}), 400
+
+        # Check if session is expired
+        if session.is_expired():
+            cleanup_session(file_id)
+            return jsonify({"error": "Upload session expired"}), 410
+
+        # Ensure all chunks have been received
+        if not session.is_complete():
+            return jsonify({"error": "Upload incomplete"}), 400
+
+        # Call process_complete_upload asynchronously
+        await process_complete_upload(session)
+
+        # Cleanup session after processing
+        cleanup_session(file_id)
+
+        return jsonify({"message": "Upload finalized and processed successfully"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
