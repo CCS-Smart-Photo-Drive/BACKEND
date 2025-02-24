@@ -108,7 +108,7 @@ async def user_my_dashboard():
                 print(public_url)
                 print("Uploading URL to Mongo")
                 url = {
-                    'email' : user_email
+                    'email' : user_email,
                     'url': public_url
                 }
                 profile_image_collection.insert_one(url)
