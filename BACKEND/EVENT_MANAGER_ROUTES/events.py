@@ -25,7 +25,7 @@ import aiofiles
 from google.cloud import storage
 import hashlib
 
-
+from bson.objectid import ObjectId
 
 
 
@@ -464,141 +464,6 @@ async def process_embeddings_and_upload(event_folder, event_name, email_receiver
 #             log_debug("Cleaned up event folder after error")
 #         return jsonify({'error': str(e)}), 500
 
-# async def add_new_event():
-#     """Handles large file uploads via streaming with improved error handling."""
-#     event_folder = None
-#     file_path = None
-    
-#     try:
-#         log_debug("Received new event upload request")
-        
-#         # Validate headers
-#         required_headers = {
-#             'X-Event-Manager-Name': 'event_manager_name',
-#             'X-Event-Name': 'event_name',
-#             'X-Description': 'description',
-#             'X-Organized-By': 'organized_by',
-#             'X-Date': 'date'
-#         }
-        
-#         event = {}
-#         for header, field in required_headers.items():
-#             value = request.headers.get(header)
-#             if not value:
-#                 log_debug(f"Missing required header: {header}")
-#                 return jsonify({'error': f'Missing required header: {header}'}), 400
-#             event[field] = value
-
-#         log_debug(f"Processing event: {event['event_name']}")
-
-#         # Check for duplicate event
-#         if events_collection.find_one({'event_manager_name': event['event_manager_name'], 
-#                                      'event_name': event['event_name']}):
-#             log_debug(f"Duplicate event found: {event['event_name']}")
-#             return jsonify({'error': 'Event already exists'}), 400
-
-#         # Create upload directory
-#         event_folder = os.path.join(app.config['UPLOAD_FOLDER'], event['event_name'])
-#         os.makedirs(event_folder, exist_ok=True)
-#         log_debug(f"Created event folder: {event_folder}")
-        
-#         file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{event['event_name']}.zip")
-
-#         # Stream file to disk
-#         content_length = request.content_length
-#         if not content_length:
-#             log_debug("Missing Content-Length header")
-#             return jsonify({'error': 'Content-Length header is required'}), 400
-        
-#         log_debug(f"Starting file upload, expected size: {content_length} bytes")
-#         bytes_received = 0
-#         chunk_size = 65536  # 64KB chunks
-        
-#         start_time = time.time()
-#         async with aiofiles.open(file_path, "wb") as f:
-#             while bytes_received < content_length:
-#                 chunk = await asyncio.to_thread(
-#                     request.environ['wsgi.input'].read,
-#                     min(chunk_size, content_length - bytes_received)
-#                 )
-#                 if not chunk:
-#                     break
-#                 await f.write(chunk)
-#                 bytes_received += len(chunk)
-#                 if bytes_received % (1024 * 1024) == 0:  # Log every 1MB
-#                     log_debug(f"Upload progress: {bytes_received}/{content_length} bytes ({(bytes_received/content_length)*100:.1f}%)")
-
-#         upload_time = time.time() - start_time
-#         log_debug(f"File upload completed in {upload_time:.2f} seconds")
-
-#         if bytes_received != content_length:
-#             raise ValueError(f"Incomplete file upload: got {bytes_received} bytes, expected {content_length}")
-
-#         # Extract and rename files
-#         log_debug("Starting file extraction and renaming")
-#         await asyncio.to_thread(extract_and_rename_files, file_path, event_folder, event['event_name'])
-        
-#         # Save event to database
-#         log_debug("Saving event to database")
-#         await asyncio.to_thread(events_collection.insert_one, event)
-        
-#         # Start background processing
-#         log_debug("Starting background processing task")
-#         await task_manager.add_task(
-#             process_embeddings_and_upload(event_folder, event['event_name'])
-#         )
-        
-#         # Clean up zip file
-#         if os.path.exists(file_path):
-#             os.remove(file_path)
-#             log_debug("Cleaned up temporary zip file")
-        
-#         log_debug("Event upload completed successfully")
-#         return jsonify({
-#             'message': 'Event added successfully. Processing in background.',
-#             'event_name': event['event_name']
-#         }), 202
-
-#     except zipfile.BadZipFile:
-#         log_debug("Invalid ZIP file uploaded")
-#         return jsonify({'error': 'Invalid ZIP file'}), 400
-#     except Exception as e:
-#         log_debug(f"Error processing event upload: {str(e)}")
-#         # Clean up on error
-#         if file_path and os.path.exists(file_path):
-#             os.remove(file_path)
-#             log_debug("Cleaned up temporary zip file after error")
-#         if event_folder and os.path.exists(event_folder):
-#             shutil.rmtree(event_folder, ignore_errors=True)
-#             log_debug("Cleaned up event folder after error")
-#         return jsonify({'error': str(e)}), 500
-
-def extract_and_rename_files(file_path, event_folder, event_name):
-    """Extract zip file and rename files in one function to reduce complexity."""
-    try:
-        log_debug(f"Extracting zip file: {file_path}")
-        with zipfile.ZipFile(file_path, 'r') as zip_ref:
-            zip_ref.extractall(event_folder)
-        log_debug("Zip file extracted successfully")
-        
-        # Rename files
-        files = os.listdir(event_folder)
-        log_debug(f"Renaming {len(files)} extracted files")
-        
-        for idx, extracted_file in enumerate(files, start=1):
-            extracted_file_path = os.path.join(event_folder, extracted_file)
-            if not os.path.isfile(extracted_file_path):
-                continue
-            file_ext = os.path.splitext(extracted_file)[1]
-            new_filename = f"{event_name}_{idx}{file_ext}"
-            new_path = os.path.join(event_folder, new_filename)
-            os.rename(extracted_file_path, new_path)
-            log_debug(f"Renamed: {extracted_file} -> {new_filename}")
-        
-        log_debug("File extraction and renaming completed")
-    except Exception as e:
-        log_debug(f"Error in extract_and_rename_files: {str(e)}")
-        raise
 
 
 
@@ -607,130 +472,7 @@ CHUNK_SIZE = 5 * 1024 * 1024  # 5MB chunks
 UPLOAD_EXPIRY_HOURS = 24
 CONCURRENT_CHUNKS = 3
 
-# class UploadSession:
-#     def __init__(self, total_size, file_id, metadata):
-#         self.total_size = total_size
-#         self.file_id = file_id
-#         self.metadata = metadata
-#         self.received_chunks = set()
-#         self.created_at = datetime.now()
-#         self.temp_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'temp', file_id)
-#         os.makedirs(self.temp_dir, exist_ok=True)
 
-#     def is_expired(self):
-#         return datetime.now() - self.created_at > timedelta(hours=UPLOAD_EXPIRY_HOURS)
-
-#     def is_complete(self):
-#         expected_chunks = (self.total_size + CHUNK_SIZE - 1) // CHUNK_SIZE
-#         return len(self.received_chunks) == expected_chunks
-
-# # In-memory storage for upload sessions
-# upload_sessions = {}
-
-# @app.route('/init_upload', methods=['POST'])
-# async def init_upload():
-#     """Initialize a new chunked upload session"""
-#     try:
-#         # Validate request
-#         if not request.is_json:
-            
-#             return jsonify({'error': 'Request must be JSON'}), 400
-
-#         data = request.get_json()
-#         required_fields = {
-#             'totalSize': 'total_size',
-#             'fileName': 'file_name',
-#             'eventName': 'event_name',
-#             'organizedBy': 'organized_by',
-#             'description': 'description',
-#             'eventManagerName': 'event_manager_name',
-#             'eventManagerEmail': 'event_manager_email',
-#             'date': 'date'
-#         }
-
-#         metadata = {}
-#         for field, key in required_fields.items():
-#             if field not in data:
-#                 return jsonify({'error': f'Missing required field: {field}'}), 400
-#             metadata[key] = data[field]
-
-#         # Generate unique file ID
-#         file_id = hashlib.sha256(f"{metadata['event_name']}_{metadata['file_name']}_{datetime.now().isoformat()}".encode()).hexdigest()
-
-#         # Check for duplicate event
-#         if events_collection.find_one({
-#             'event_manager_name': metadata['event_manager_name'],
-#             'event_name': metadata['event_name']
-#         }):
-#             return jsonify({'error': 'Event already exists'}), 400
-
-#         # Create upload session
-#         session = UploadSession(
-#             total_size=data['totalSize'],
-#             file_id=file_id,
-#             metadata=metadata
-#         )
-#         upload_sessions[file_id] = session
-
-#         return jsonify({
-#             'fileId': file_id,
-#             'chunkSize': CHUNK_SIZE,
-#             'totalChunks': (data['totalSize'] + CHUNK_SIZE - 1) // CHUNK_SIZE,
-#             'expiresIn': UPLOAD_EXPIRY_HOURS * 3600  # seconds
-#         }), 200
-
-#     except Exception as e:
-#         log_debug(f"Error initializing upload: {str(e)}")
-#         return jsonify({'error': str(e)}), 500
-
-# @app.route('/upload_chunk/<file_id>', methods=['POST'])
-# async def upload_chunk(file_id):
-#     """Handle individual chunk uploads"""
-#     try:
-#         session = upload_sessions.get(file_id)
-#         if not session:
-#             return jsonify({'error': 'Upload session not found'}), 404
-
-#         if session.is_expired():
-#             cleanup_session(file_id)
-#             return jsonify({'error': 'Upload session expired'}), 410
-
-#         chunk_index = int(request.headers.get('X-Chunk-Index', -1))
-#         if chunk_index < 0:
-#             return jsonify({'error': 'Missing chunk index'}), 400
-
-#         if chunk_index in session.received_chunks:
-#             return jsonify({'message': 'Chunk already received', 'chunkIndex': chunk_index}), 200
-
-#         # Save chunk to temporary file
-#         chunk_file = os.path.join(session.temp_dir, f'chunk_{chunk_index}')
-#         async with aiofiles.open(chunk_file, 'wb') as f:
-#             await f.write(await request.get_data())
-
-#         session.received_chunks.add(chunk_index)
-
-#         # If upload is complete, process the file
-#         if session.is_complete():
-#             await process_complete_upload(session)
-#             cleanup_session(file_id)
-#             return jsonify({
-#                 'message': 'Upload complete, processing started',
-#                 'event_name': session.metadata['event_name']
-#             }), 202
-
-#         return jsonify({
-#             'message': 'Chunk received',
-#             'chunkIndex': chunk_index,
-#             'remainingChunks': (session.total_size + CHUNK_SIZE - 1) // CHUNK_SIZE - len(session.received_chunks)
-#         }), 200
-
-#     except Exception as e:
-#         log_debug(f"Error uploading chunk: {str(e)}")
-#         return jsonify({'error': str(e)}), 500
-from datetime import datetime, timedelta
-import hashlib
-import os
-import aiofiles
 
 class UploadSession:
     def __init__(self, total_size, file_id, metadata):
@@ -738,6 +480,7 @@ class UploadSession:
         self.file_id = file_id
         self.metadata = metadata
         self.received_chunks = set()
+        self.expected_chunks = (total_size + CHUNK_SIZE - 1) // CHUNK_SIZE  # Store expected chunks
         self.created_at = datetime.now()
         self.temp_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'temp', file_id)
         os.makedirs(self.temp_dir, exist_ok=True)
@@ -746,8 +489,8 @@ class UploadSession:
         return datetime.now() - self.created_at > timedelta(hours=UPLOAD_EXPIRY_HOURS)
 
     def is_complete(self):
-        expected_chunks = (self.total_size + CHUNK_SIZE - 1) // CHUNK_SIZE
-        return len(self.received_chunks) == expected_chunks
+        return len(self.received_chunks) == self.expected_chunks
+
 
 # In-memory storage for upload sessions
 upload_sessions = {}
@@ -807,6 +550,59 @@ async def init_upload():
         log_debug(f"Error initializing upload: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+
+# @app.route('/upload_chunk/<file_id>', methods=['POST'])
+# async def upload_chunk(file_id):
+#     """Handle individual chunk uploads"""
+#     try:
+#         session = upload_sessions.get(file_id)
+#         if not session:
+#             return jsonify({'error': 'Upload session not found'}), 404
+
+#         if session.is_expired():
+#             cleanup_session(file_id)
+#             return jsonify({'error': 'Upload session expired'}), 410
+
+#         chunk_index = int(request.headers.get('X-Chunk-Index', -1))
+#         if chunk_index < 0:
+#             return jsonify({'error': 'Missing chunk index'}), 400
+
+#         if chunk_index in session.received_chunks:
+#             return jsonify({'message': 'Chunk already received', 'chunkIndex': chunk_index}), 200
+
+#         # Get the raw data synchronously
+#         chunk_data = request.get_data()
+#         if not chunk_data:
+#             return jsonify({'error': 'Empty chunk received'}), 400
+
+#         # Save chunk to temporary file asynchronously
+#         chunk_file = os.path.join(session.temp_dir, f'chunk_{chunk_index}')
+#         async with aiofiles.open(chunk_file, 'wb') as f:
+#             await f.write(chunk_data)
+
+#         session.received_chunks.add(chunk_index)
+
+#         # Ensure all expected chunks have been received before proceeding
+#         expected_chunks = session.metadata.get("total_chunks", (session.total_size + CHUNK_SIZE - 1) // CHUNK_SIZE)
+#         if len(session.received_chunks) >= expected_chunks:
+#             await process_complete_upload(session)
+#             cleanup_session(file_id)
+#             return jsonify({
+#                 'message': 'Upload complete, processing started',
+#                 'event_name': session.metadata['event_name']
+#             }), 202
+
+#         return jsonify({
+#             'message': 'Chunk received',
+#             'chunkIndex': chunk_index,
+#             'remainingChunks': expected_chunks - len(session.received_chunks)
+#         }), 200
+
+#     except Exception as e:
+#         log_debug(f"Error uploading chunk: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
+
+
 @app.route('/upload_chunk/<file_id>', methods=['POST'])
 async def upload_chunk(file_id):
     """Handle individual chunk uploads"""
@@ -826,51 +622,78 @@ async def upload_chunk(file_id):
         if chunk_index in session.received_chunks:
             return jsonify({'message': 'Chunk already received', 'chunkIndex': chunk_index}), 200
 
-        # Get the raw data synchronously
+        # Get the raw data
         chunk_data = request.get_data()
-        
-        # Save chunk to temporary file asynchronously
+        if not chunk_data:
+            return jsonify({'error': 'Empty chunk received'}), 400
+
+        # Save chunk asynchronously
         chunk_file = os.path.join(session.temp_dir, f'chunk_{chunk_index}')
         async with aiofiles.open(chunk_file, 'wb') as f:
             await f.write(chunk_data)
 
         session.received_chunks.add(chunk_index)
 
-        # If upload is complete, process the file
+        # **Ensure all expected chunks exist on disk before processing**
         if session.is_complete():
-            await process_complete_upload(session)
-            cleanup_session(file_id)
-            return jsonify({
-                'message': 'Upload complete, processing started',
-                'event_name': session.metadata['event_name']
-            }), 202
+            await asyncio.sleep(20)  # Small delay to ensure last chunk is written
+            missing_chunks = [
+                i for i in range(session.expected_chunks) 
+                if not os.path.exists(os.path.join(session.temp_dir, f'chunk_{i}'))
+            ]
+            if not missing_chunks:
+                await process_complete_upload(session)
+                cleanup_session(file_id)
+                return jsonify({
+                    'message': 'Upload complete, processing started',
+                    'event_name': session.metadata['event_name']
+                }), 202
 
         return jsonify({
             'message': 'Chunk received',
             'chunkIndex': chunk_index,
-            'remainingChunks': (session.total_size + CHUNK_SIZE - 1) // CHUNK_SIZE - len(session.received_chunks)
+            'remainingChunks': session.expected_chunks - len(session.received_chunks)
         }), 200
 
     except Exception as e:
         log_debug(f"Error uploading chunk: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
 async def process_complete_upload(session):
     """Process a completed upload"""
     try:
         # Combine chunks into final file
-        final_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{session.metadata['event_name']}.zip")
+        upload_folder = app.config['UPLOAD_FOLDER']
+        final_path = os.path.join(upload_folder, f"{session.metadata['event_name']}.zip")
+        
+        log_debug(f"Final zip path: {final_path}")
+        
         async with aiofiles.open(final_path, 'wb') as outfile:
             for i in range(len(session.received_chunks)):
                 chunk_path = os.path.join(session.temp_dir, f'chunk_{i}')
-                async with aiofiles.open(chunk_path, 'rb') as chunk_file:
-                    await outfile.write(await chunk_file.read())
-
-        # Create event folder and process as before
-        event_folder = os.path.join(app.config['UPLOAD_FOLDER'], session.metadata['event_name'])
+                if not os.path.exists(chunk_path):
+                    log_debug(f"Missing chunk: {chunk_path}")
+                    continue
+                try:
+                    async with aiofiles.open(chunk_path, 'rb') as chunk_file:
+                        chunk_data = await chunk_file.read()
+                        if not chunk_data:
+                            log_debug(f"Empty chunk: {chunk_path}")
+                            continue
+                        await outfile.write(chunk_data)
+                except Exception as chunk_error:
+                    log_debug(f"Error reading chunk {chunk_path}: {chunk_error}")
+                    continue
+        
+        # Create event folder
+        event_folder = os.path.join(upload_folder, session.metadata['event_name'])
+        log_debug(f"Event folder path: {event_folder}")
         os.makedirs(event_folder, exist_ok=True)
-
+        
         # Extract and process files
         await asyncio.to_thread(extract_and_rename_files, final_path, event_folder, session.metadata['event_name'])
+        
+        # Store metadata
         await asyncio.to_thread(events_collection.insert_one, session.metadata)
         
         # Start background processing
@@ -881,23 +704,66 @@ async def process_complete_upload(session):
                 session.metadata['event_manager_email']
             )
         )
-
-        # Cleanup
+        #cleanup
         os.remove(final_path)
-
     except Exception as e:
         log_debug(f"Error processing complete upload: {str(e)}")
-        if os.path.exists(final_path):
-            os.remove(final_path)
-        if os.path.exists(event_folder):
-            shutil.rmtree(event_folder, ignore_errors=True)
+
+def extract_and_rename_files(file_path, event_folder, event_name):
+    """Extract zip file, rename images, and delete non-image files."""
+    try:
+        if not os.path.exists(event_folder):
+            os.makedirs(event_folder)
+
+        log_debug(f"Extracting zip file: {file_path}")
+        
+        # Extract files
+        with zipfile.ZipFile(file_path, 'r') as zip_ref:
+            zip_ref.extractall(event_folder)
+        
+        log_debug("Zip file extracted successfully")
+        
+        # Define allowed image extensions
+        allowed_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'}
+        
+        # Ensure all extracted files are counted correctly
+        extracted_files = []
+        for root, _, files in os.walk(event_folder):
+            for file in files:
+                file_path = os.path.join(root, file)
+                if os.path.splitext(file)[1].lower() in allowed_extensions:
+                    extracted_files.append(file_path)
+                else:
+                    os.remove(file_path)  # Delete non-image files
+                    log_debug(f"Deleted non-image file: {file_path}")
+        
+        log_debug(f"Renaming {len(extracted_files)} extracted image files")
+        
+        for idx, extracted_file_path in enumerate(extracted_files, start=1):
+            file_ext = os.path.splitext(extracted_file_path)[1]
+            new_filename = f"{event_name}_{idx}{file_ext}"
+            new_path = os.path.join(event_folder, new_filename)
+            
+            os.rename(extracted_file_path, new_path)
+            log_debug(f"Renamed: {os.path.basename(extracted_file_path)} -> {new_filename}")
+        
+        log_debug("File extraction, cleanup, and renaming completed")
+    except Exception as e:
+        log_debug(f"Error in extract_and_rename_files: {str(e)}")
         raise
+
 
 def cleanup_session(file_id):
     """Clean up upload session and temporary files"""
     session = upload_sessions.pop(file_id, None)
     if session and os.path.exists(session.temp_dir):
         shutil.rmtree(session.temp_dir, ignore_errors=True)
+
+
+
+
+
+
 
 @app.route('/my_events', methods=['POST'])
 async def my_events():
@@ -908,3 +774,167 @@ async def my_events():
     for event in events:
         event['_id'] = str(event['_id'])
     return jsonify({'events': events}), 200
+
+@app.route('/events/<event_id>', methods=['DELETE'])
+async def delete_event(event_id):
+    event_manager = g.user.get('user_name', '')
+
+    if not event_manager:
+        return jsonify({'error': 'Return Event_Manager Name'}), 400
+
+    # Validate ObjectId format
+    if not ObjectId.is_valid(event_id):
+        return jsonify({'error': 'Invalid Event ID'}), 400
+
+    event_obj_id = ObjectId(event_id)
+    
+    # Check if the event exists
+    event = events_collection.find_one({'_id': event_obj_id})
+    if not event:
+        return jsonify({'error': 'Event not found'}), 404
+
+    # Delete the event
+    result = events_collection.delete_one({'_id': event_obj_id})
+
+    if result.deleted_count == 1:
+        return jsonify({'message': 'Event deleted successfully'}), 200
+    else:
+        return jsonify({'error': 'Failed to delete event'}), 500
+
+
+
+
+# async def process_complete_upload(session):
+#     """Process a completed upload"""
+#     try:
+#         # Combine chunks into final file
+#         upload_folder = app.config['UPLOAD_FOLDER']
+#         final_path = os.path.join(upload_folder, f"{session.metadata['event_name']}.zip")
+        
+#         log_debug(f"Final zip path: {final_path}")
+        
+#         async with aiofiles.open(final_path, 'wb') as outfile:
+#             for i in range(len(session.received_chunks)):
+#                 chunk_path = os.path.join(session.temp_dir, f'chunk_{i}')
+#                 async with aiofiles.open(chunk_path, 'rb') as chunk_file:
+#                     await outfile.write(await chunk_file.read())
+        
+#         # Create event folder
+#         event_folder = os.path.join(upload_folder, session.metadata['event_name'])
+#         log_debug(f"Event folder path: {event_folder}")
+#         os.makedirs(event_folder, exist_ok=True)
+        
+#         # Extract and process files
+#         await asyncio.to_thread(extract_and_rename_files, final_path, event_folder, session.metadata['event_name'])
+        
+#         # Store metadata
+#         await asyncio.to_thread(events_collection.insert_one, session.metadata)
+        
+#         #cleanup
+
+#         os.remove(final_path)
+
+#         # Start background processing
+#         await task_manager.add_task(
+#             process_embeddings_and_upload(
+#                 event_folder,
+#                 session.metadata['event_name'],
+#                 session.metadata['event_manager_email']
+#             )
+#         )
+
+
+#     except Exception as e:
+#         log_debug(f"Error processing complete upload: {str(e)}")
+
+# def extract_and_rename_files(file_path, event_folder, event_name):
+#     """Extract zip file, rename images, and delete non-image files."""
+#     try:
+#         if not os.path.exists(event_folder):
+#             os.makedirs(event_folder)
+
+#         log_debug(f"Extracting zip file: {file_path}")
+        
+#         # Extract files
+#         with zipfile.ZipFile(file_path, 'r') as zip_ref:
+#             zip_ref.extractall(event_folder)
+        
+#         log_debug("Zip file extracted successfully")
+        
+#         # Define allowed image extensions
+#         allowed_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'}
+        
+#         # Ensure all extracted files are counted correctly
+#         extracted_files = []
+#         for root, _, files in os.walk(event_folder):
+#             for file in files:
+#                 file_path = os.path.join(root, file)
+#                 if os.path.splitext(file)[1].lower() in allowed_extensions:
+#                     extracted_files.append(file_path)
+#                 else:
+#                     os.remove(file_path)  # Delete non-image files
+#                     log_debug(f"Deleted non-image file: {file_path}")
+        
+#         log_debug(f"Renaming {len(extracted_files)} extracted image files")
+        
+#         for idx, extracted_file_path in enumerate(extracted_files, start=1):
+#             file_ext = os.path.splitext(extracted_file_path)[1]
+#             new_filename = f"{event_name}_{idx}{file_ext}"
+#             new_path = os.path.join(event_folder, new_filename)
+            
+#             os.rename(extracted_file_path, new_path)
+#             log_debug(f"Renamed: {os.path.basename(extracted_file_path)} -> {new_filename}")
+        
+#         log_debug("File extraction, cleanup, and renaming completed")
+#     except Exception as e:
+#         log_debug(f"Error in extract_and_rename_files: {str(e)}")
+#         raise
+
+
+
+# async def upload_chunk(file_id):
+#     """Handle individual chunk uploads"""
+#     try:
+#         session = upload_sessions.get(file_id)
+#         if not session:
+#             return jsonify({'error': 'Upload session not found'}), 404
+
+#         if session.is_expired():
+#             cleanup_session(file_id)
+#             return jsonify({'error': 'Upload session expired'}), 410
+
+#         chunk_index = int(request.headers.get('X-Chunk-Index', -1))
+#         if chunk_index < 0:
+#             return jsonify({'error': 'Missing chunk index'}), 400
+
+#         if chunk_index in session.received_chunks:
+#             return jsonify({'message': 'Chunk already received', 'chunkIndex': chunk_index}), 200
+
+#         # Get the raw data synchronously
+#         chunk_data = request.get_data()
+        
+#         # Save chunk to temporary file asynchronously
+#         chunk_file = os.path.join(session.temp_dir, f'chunk_{chunk_index}')
+#         async with aiofiles.open(chunk_file, 'wb') as f:
+#             await f.write(chunk_data)
+
+#         session.received_chunks.add(chunk_index)
+
+#         # If upload is complete, process the file
+#         if session.is_complete():
+#             await process_complete_upload(session)
+#             cleanup_session(file_id)
+#             return jsonify({
+#                 'message': 'Upload complete, processing started',
+#                 'event_name': session.metadata['event_name']
+#             }), 202
+
+#         return jsonify({
+#             'message': 'Chunk received',
+#             'chunkIndex': chunk_index,
+#             'remainingChunks': (session.total_size + CHUNK_SIZE - 1) // CHUNK_SIZE - len(session.received_chunks)
+#         }), 200
+
+#     except Exception as e:
+#         log_debug(f"Error uploading chunk: {str(e)}")
+#         return jsonify({'error': str(e)}), 500

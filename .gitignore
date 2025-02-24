@@ -11,3 +11,4 @@ FACE_MOEDEL/*.json
 BACKEND/config/serviceAccount.json
 FACE_MODEL/user_embeddings.json
 FACE_MODEL/event_photo_embedding.json
+BACKEND/upload_folder/*
