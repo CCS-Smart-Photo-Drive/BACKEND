@@ -563,26 +563,6 @@ async def init_upload():
         return jsonify({'error': str(e)}), 500
 
 
-class UploadSession:
-    def __init__(self, total_size, file_id, metadata, chunks):
-        self.total_size = total_size
-        self.file_id = file_id
-        self.metadata = metadata
-        self.received_chunks = set()
-        self.expected_chunks = chunks
-        self.created_at = datetime.now()
-        self.temp_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'temp', file_id)
-        self.chunks_writing = 0  # Counter for active write operations
-        os.makedirs(self.temp_dir, exist_ok=True)
-
-    def is_expired(self):
-        return datetime.now() - self.created_at > timedelta(hours=UPLOAD_EXPIRY_HOURS)
-
-    def is_complete(self):
-        # Only consider complete if all chunks received AND no active writes
-        return (len(self.received_chunks) == self.expected_chunks and 
-                self.chunks_writing == 0)
-
 @app.route('/upload_chunk/<file_id>', methods=['POST'])
 async def upload_chunk(file_id):
     """Handle individual chunk uploads"""
