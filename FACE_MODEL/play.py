@@ -51,6 +51,7 @@ async def generate_event_embeddings(image_folder, event_name):
         return False
 
     num_workers = min(multiprocessing.cpu_count(), len(image_file_names))
+    num_workers = num_workers -1 if num_workers > 1 else 1
 
     with multiprocessing.Pool(num_workers) as pool:
         results = await asyncio.get_running_loop().run_in_executor(None, lambda: pool.map(process_image, image_file_names))
@@ -222,6 +223,7 @@ async def finding_nemo(user_email, event_name):
     event_embeddings_list = [(img, emb) for img, emb in event_images_collection.items()]
 
     num_workers = min(multiprocessing.cpu_count(), len(event_embeddings_list))  # Optimize worker count
+    num_workers = num_workers - 1 if num_workers > 1 else 1
 
     with multiprocessing.Pool(num_workers) as pool:
         loop = asyncio.get_running_loop()
