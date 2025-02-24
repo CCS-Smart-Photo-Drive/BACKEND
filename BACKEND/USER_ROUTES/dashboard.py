@@ -6,7 +6,7 @@ import uuid
 from flask import  request, jsonify, send_file, g
 from werkzeug.utils import secure_filename
 import bcrypt
-from BACKEND.init_config import user_collection, app, events_collection
+from BACKEND.init_config import user_collection, app, events_collection, profile_image_collection
 from FACE_MODEL.play import generate_user_embeddings, finding_nemo
 import requests
 import asyncio
@@ -72,6 +72,7 @@ async def upload_to_gcs(local_file_path, user_email):
         # Make the file public
         blob.make_public()
         print(blob.public_url)
+        
         # Return public URL
         return blob.public_url, None
 
@@ -105,6 +106,12 @@ async def user_my_dashboard():
             if public_url:
                 os.remove(file_path)
                 print(public_url)
+                print("Uploading URL to Mongo")
+                url = {
+                    'email' : user_email
+                    'url': public_url
+                }
+                profile_image_collection.insert_one(url)
                 return jsonify({'success': 'File uploaded', 'url': public_url}), 200
             else:
                 if error:
