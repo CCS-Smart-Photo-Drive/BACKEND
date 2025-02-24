@@ -563,8 +563,12 @@ async def process_upload_background(session):
         events_collection.insert_one(event_data)
         log_debug(f"Event metadata stored in database for {session.metadata['event_name']}")
         
-        # Clean up the temporary files
-        cleanup_session(session.file_id)
+
+        try:
+            await process_complete_upload(session)
+        finally:
+            cleanup_session(session.file_id)
+
         
     except Exception as e:
         log_debug(f"Error in background processing: {str(e)}")
@@ -768,12 +772,12 @@ async def process_upload(file_id):
         return jsonify({'error': str(e)}), 500
 
 
-async def process_upload_background(session):
-    """Background task to process the upload"""
-    try:
-        await process_complete_upload(session)
-    finally:
-        cleanup_session(session.file_id)
+# async def process_upload_background(session):
+#     """Background task to process the upload"""
+#     try:
+#         await process_complete_upload(session)
+#     finally:
+#         cleanup_session(session.file_id)
 
 
 
