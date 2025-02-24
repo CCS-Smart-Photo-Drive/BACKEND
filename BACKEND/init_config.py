@@ -70,7 +70,7 @@ def add_cors_headers(response):
     """ Ensure CORS headers are added to every response """
     response.headers["Access-Control-Allow-Origin"] = os.getenv("ALLOWED_ORIGINS")
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Event-Name, X-Description, X-Organized-By, X-Date, X-Event-Manager-Name, X-Event-Manager-Email"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Event-Name, X-Description, X-Organized-By, X-Date, X-Event-Manager-Name, X-Event-Manager-Email, X-Chunk-Index"
     return response
 
 app.config["MONGO_URI"] = os.getenv("MONGO_URI")
