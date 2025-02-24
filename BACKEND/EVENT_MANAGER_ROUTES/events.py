@@ -348,120 +348,121 @@ async def process_embeddings_and_upload(event_folder, event_name, email_receiver
         log_debug(f"Cleaning up event folder: {event_folder}")
         await asyncio.to_thread(shutil.rmtree, event_folder, ignore_errors=True)
 
-@app.route('/add_new_event', methods=['POST'])
-async def add_new_event():
-    """Handles large file uploads via streaming with improved error handling."""
-    event_folder = None
-    file_path = None
+# @app.route('/add_new_event', methods=['POST'])
+# async def add_new_event():
+#     """Handles large file uploads via streaming with improved error handling."""
+#     event_folder = None
+#     file_path = None
     
-    try:
-        log_debug("Received new event upload request")
+#     try:
+#         log_debug("Received new event upload request")
         
-        # Validate headers
-        required_headers = {
-            'X-Event-Manager-Name': 'event_manager_name',
-            'X-Event-Name': 'event_name',
-            'X-Description': 'description',
-            'X-Organized-By': 'organized_by',
-            'X-Event-Manager-Email': 'event_manager_email',
-            'X-Date': 'date'
-        }
+#         # Validate headers
+#         required_headers = {
+#             'X-Event-Manager-Name': 'event_manager_name',
+#             'X-Event-Name': 'event_name',
+#             'X-Description': 'description',
+#             'X-Organized-By': 'organized_by',
+#             'X-Event-Manager-Email': 'event_manager_email',
+#             'X-Date': 'date'
+#         }
         
-        event = {}
-        for header, field in required_headers.items():
-            value = request.headers.get(header)
-            if not value:
-                log_debug(f"Missing required header: {header}")
-                return jsonify({'error': f'Missing required header: {header}'}), 400
-            event[field] = value
+#         event = {}
+#         for header, field in required_headers.items():
+#             value = request.headers.get(header)
+#             if not value:
+#                 log_debug(f"Missing required header: {header}")
+#                 return jsonify({'error': f'Missing required header: {header}'}), 400
+#             event[field] = value
 
-        log_debug(f"Processing event: {event['event_name']}")
+#         log_debug(f"Processing event: {event['event_name']}")
 
-        # Check for duplicate event
-        if events_collection.find_one({'event_manager_name': event['event_manager_name'], 
-                                     'event_name': event['event_name']}):
-            log_debug(f"Duplicate event found: {event['event_name']}")
-            return jsonify({'error': 'Event already exists'}), 400
+#         # Check for duplicate event
+#         if events_collection.find_one({'event_manager_name': event['event_manager_name'], 
+#                                      'event_name': event['event_name']}):
+#             log_debug(f"Duplicate event found: {event['event_name']}")
+#             return jsonify({'error': 'Event already exists'}), 400
 
-        # Create upload directory
-        event_folder = os.path.join(app.config['UPLOAD_FOLDER'], event['event_name'])
-        os.makedirs(event_folder, exist_ok=True)
-        log_debug(f"Created event folder: {event_folder}")
+#         # Create upload directory
+#         event_folder = os.path.join(app.config['UPLOAD_FOLDER'], event['event_name'])
+#         os.makedirs(event_folder, exist_ok=True)
+#         log_debug(f"Created event folder: {event_folder}")
         
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{event['event_name']}.zip")
+#         file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{event['event_name']}.zip")
 
-        # Stream file to disk
-        content_length = request.content_length
-        if not content_length:
-            log_debug("Missing Content-Length header")
-            return jsonify({'error': 'Content-Length header is required'}), 400
+#         # Stream file to disk
+#         content_length = request.content_length
+#         if not content_length:
+#             log_debug("Missing Content-Length header")
+#             return jsonify({'error': 'Content-Length header is required'}), 400
         
-        log_debug(f"Starting file upload, expected size: {content_length} bytes")
-        bytes_received = 0
-        chunk_size = 65536  # 64KB chunks
+#         log_debug(f"Starting file upload, expected size: {content_length} bytes")
+#         bytes_received = 0
+#         chunk_size = 65536  # 64KB chunks
         
-        start_time = time.time()  # Using time.time() correctly now
+#         start_time = time.time()  # Using time.time() correctly now
         
-        async with aiofiles.open(file_path, "wb") as f:
-            while bytes_received < content_length:
-                chunk = await asyncio.to_thread(
-                    request.environ['wsgi.input'].read,
-                    min(chunk_size, content_length - bytes_received)
-                )
-                if not chunk:
-                    break
-                await f.write(chunk)
-                bytes_received += len(chunk)
-                if bytes_received % (1024 * 1024) == 0:  # Log every 1MB
-                    elapsed_time = time.time() - start_time
-                    upload_speed = bytes_received / (1024 * 1024 * elapsed_time)  # MB/s
-                    log_debug(f"Upload progress: {bytes_received}/{content_length} bytes ({(bytes_received/content_length)*100:.1f}%) - Speed: {upload_speed:.2f} MB/s")
+#         async with aiofiles.open(file_path, "wb") as f:
+#             while bytes_received < content_length:
+#                 chunk = await asyncio.to_thread(
+#                     request.environ['wsgi.input'].read,
+#                     min(chunk_size, content_length - bytes_received)
+#                 )
+#                 if not chunk:
+#                     break
+#                 await f.write(chunk)
+#                 bytes_received += len(chunk)
+#                 if bytes_received % (1024 * 1024) == 0:  # Log every 1MB
+#                     elapsed_time = time.time() - start_time
+#                     upload_speed = bytes_received / (1024 * 1024 * elapsed_time)  # MB/s
+#                     log_debug(f"Upload progress: {bytes_received}/{content_length} bytes ({(bytes_received/content_length)*100:.1f}%) - Speed: {upload_speed:.2f} MB/s")
 
-        upload_time = time.time() - start_time
-        final_speed = (bytes_received / (1024 * 1024)) / upload_time if upload_time > 0 else 0
-        log_debug(f"File upload completed in {upload_time:.2f} seconds. Average speed: {final_speed:.2f} MB/s")
+#         upload_time = time.time() - start_time
+#         final_speed = (bytes_received / (1024 * 1024)) / upload_time if upload_time > 0 else 0
+#         log_debug(f"File upload completed in {upload_time:.2f} seconds. Average speed: {final_speed:.2f} MB/s")
 
-        if bytes_received != content_length:
-            raise ValueError(f"Incomplete file upload: got {bytes_received} bytes, expected {content_length}")
+#         if bytes_received != content_length:
+#             raise ValueError(f"Incomplete file upload: got {bytes_received} bytes, expected {content_length}")
 
-        # Extract and rename files
-        log_debug("Starting file extraction and renaming")
-        await asyncio.to_thread(extract_and_rename_files, file_path, event_folder, event['event_name'])
+#         # Extract and rename files
+#         log_debug("Starting file extraction and renaming")
+#         await asyncio.to_thread(extract_and_rename_files, file_path, event_folder, event['event_name'])
         
-        # Save event to database
-        log_debug("Saving event to database")
-        await asyncio.to_thread(events_collection.insert_one, event)
+#         # Save event to database
+#         log_debug("Saving event to database")
+#         await asyncio.to_thread(events_collection.insert_one, event)
         
-        # Start background processing
-        log_debug("Starting background processing task")
-        await task_manager.add_task(
-            process_embeddings_and_upload(event_folder, event['event_name'], event['event_manager_email'])
-        )
+#         # Start background processing
+#         log_debug("Starting background processing task")
+#         await task_manager.add_task(
+#             process_embeddings_and_upload(event_folder, event['event_name'], event['event_manager_email'])
+#         )
         
-        # Clean up zip file
-        if os.path.exists(file_path):
-            os.remove(file_path)
-            log_debug("Cleaned up temporary zip file")
+#         # Clean up zip file
+#         if os.path.exists(file_path):
+#             os.remove(file_path)
+#             log_debug("Cleaned up temporary zip file")
         
-        log_debug("Event upload completed successfully")
-        return jsonify({
-            'message': 'Event added successfully. Processing in background.',
-            'event_name': event['event_name']
-        }), 202
+#         log_debug("Event upload completed successfully")
+#         return jsonify({
+#             'message': 'Event added successfully. Processing in background.',
+#             'event_name': event['event_name']
+#         }), 202
 
-    except zipfile.BadZipFile:
-        log_debug("Invalid ZIP file uploaded")
-        return jsonify({'error': 'Invalid ZIP file'}), 400
-    except Exception as e:
-        log_debug(f"Error processing event upload: {str(e)}")
-        # Clean up on error
-        if file_path and os.path.exists(file_path):
-            os.remove(file_path)
-            log_debug("Cleaned up temporary zip file after error")
-        if event_folder and os.path.exists(event_folder):
-            shutil.rmtree(event_folder, ignore_errors=True)
-            log_debug("Cleaned up event folder after error")
-        return jsonify({'error': str(e)}), 500
+#     except zipfile.BadZipFile:
+#         log_debug("Invalid ZIP file uploaded")
+#         return jsonify({'error': 'Invalid ZIP file'}), 400
+#     except Exception as e:
+#         log_debug(f"Error processing event upload: {str(e)}")
+#         # Clean up on error
+#         if file_path and os.path.exists(file_path):
+#             os.remove(file_path)
+#             log_debug("Cleaned up temporary zip file after error")
+#         if event_folder and os.path.exists(event_folder):
+#             shutil.rmtree(event_folder, ignore_errors=True)
+#             log_debug("Cleaned up event folder after error")
+#         return jsonify({'error': str(e)}), 500
+
 # async def add_new_event():
 #     """Handles large file uploads via streaming with improved error handling."""
 #     event_folder = None
@@ -570,6 +571,75 @@ async def add_new_event():
 #             shutil.rmtree(event_folder, ignore_errors=True)
 #             log_debug("Cleaned up event folder after error")
 #         return jsonify({'error': str(e)}), 500
+
+
+
+
+CHUNK_FOLDER = os.path.join(UPLOAD_FOLDER, "chunks")
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(CHUNK_FOLDER, exist_ok=True)
+
+
+@app.route("/upload_chunk", methods=["POST"])
+async def upload_chunk():
+    """Handles chunked file uploads."""
+    chunk = request.files.get("chunk")
+    chunk_index = request.form.get("chunk_index", type=int)
+    total_chunks = request.form.get("total_chunks", type=int)
+    file_name = request.form.get("file_name")
+
+    if not chunk or chunk_index is None or total_chunks is None or not file_name:
+        return jsonify({"error": "Invalid chunk data"}), 400
+
+    chunk_path = os.path.join(CHUNK_FOLDER, f"{file_name}.part{chunk_index}")
+
+    async with aiofiles.open(chunk_path, "wb") as f:
+        await f.write(chunk.read())
+
+    return jsonify({"message": f"Chunk {chunk_index}/{total_chunks} received"}), 200
+
+
+@app.route("/finalize_upload", methods=["POST"])
+async def finalize_upload():
+    """Assembles uploaded chunks and processes the file."""
+    data = request.json
+    file_name = data.get("file_name")
+    event_data = data.get("eventData")
+
+    if not file_name or not event_data:
+        return jsonify({"error": "Missing required parameters"}), 400
+
+    final_path = os.path.join(UPLOAD_FOLDER, file_name)
+    
+    # Assemble the chunks
+    chunk_paths = sorted(
+        [os.path.join(CHUNK_FOLDER, f) for f in os.listdir(CHUNK_FOLDER) if f.startswith(file_name)],
+        key=lambda x: int(x.split(".part")[-1])
+    )
+
+    async with aiofiles.open(final_path, "wb") as final_file:
+        for chunk_path in chunk_paths:
+            async with aiofiles.open(chunk_path, "rb") as chunk_file:
+                await final_file.write(await chunk_file.read())
+            os.remove(chunk_path)  # Clean up chunk file
+
+    # Verify zip integrity
+    if not zipfile.is_zipfile(final_path):
+        os.remove(final_path)
+        return jsonify({"error": "Invalid ZIP file"}), 400
+
+    # Extract and process the event
+    event_folder = os.path.join(UPLOAD_FOLDER, event_data["event_name"])
+    os.makedirs(event_folder, exist_ok=True)
+
+    await asyncio.to_thread(extract_and_rename_files, final_path, event_folder, event_data["event_name"])
+
+    # Clean up original zip
+    os.remove(final_path)
+
+    return jsonify({"message": "File uploaded and processed successfully"}), 200
+
 
 def extract_and_rename_files(file_path, event_folder, event_name):
     """Extract zip file and rename files in one function to reduce complexity."""
