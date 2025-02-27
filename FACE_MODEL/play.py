@@ -147,7 +147,9 @@ def process_user_image(image_path):
     try:
         user_dp = cv2.imread(image_path)
         user_dp = cv2.cvtColor(user_dp, cv2.COLOR_BGR2RGB)
-        user_dp_embeddings = face_recognition.face_encodings(user_dp)
+        face_locations = face_recognition.face_locations(user_dp, model="cnn")
+        user_dp_embeddings = face_recognition.face_encodings(user_dp, known_face_locations=face_locations)
+
 
         if user_dp_embeddings:
             return user_dp_embeddings[0].tolist()
@@ -187,17 +189,17 @@ def generate_user_embeddings(image_path, user_email, user_name):
     return True
 
 
-# # User ko event ke photos me dhundega mast.
-# def compare_nemo(user_embedding, image_file, event_embedding):
-#     try:
-#         user_embedding_np = np.array(user_embedding)
-#         event_embedding_np = np.array(event_embedding)
-#         match = face_recognition.compare_faces([user_embedding_np], event_embedding_np, tolerance = 0.)
-#         if any(match):
-#             return image_file
-#     except Exception as e:
-#         print(f"Error in comparison: {e}")
-#     return None
+# User ko event ke photos me dhundega mast.
+def compare_nemo(user_embedding, image_file, event_embedding):
+    try:
+        user_embedding_np = np.array(user_embedding)
+        event_embedding_np = np.array(event_embedding)
+        match = face_recognition.compare_faces([user_embedding_np], event_embedding_np, tolerance = 0.)
+        if any(match):
+            return image_file
+    except Exception as e:
+        print(f"Error in comparison: {e}")
+    return None
 
 # def compare_nemo(user_embedding, image_file, event_embedding):
 #     try:
@@ -216,33 +218,33 @@ def generate_user_embeddings(image_path, user_email, user_name):
 #         print(f"Error in comparison: {e}")
 
     # return None
-def cosine_similarity(vec1, vec2):
-    return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
-
-
-def compare_nemo(user_embedding, image_file, event_embedding):
-    try:
-        # Convert to float32 numpy arrays
-        user_embedding_np = np.asarray(user_embedding, dtype=np.float32)
-        event_embedding_np = np.asarray(event_embedding, dtype=np.float32)
-
-        # Ensure embeddings are 128-dimensional
-        if user_embedding_np.shape != (128,) or event_embedding_np.shape != (128,):
-            raise ValueError("Embeddings must be 128-dimensional.")
-
-        # Compute cosine similarity
-        similarity = cosine_similarity(user_embedding_np, event_embedding_np)
-
-        # Set a more balanced threshold (higher = more strict, lower = more lenient)
-        threshold = 0.65  # Adjust based on testing
-
-        # Cosine similarity is closer to 1 for similar faces
-        if similarity >= threshold:
-            return image_file
-    except Exception as e:
-        print(f"Error in comparison: {e}")
-
-    return None
+# def cosine_similarity(vec1, vec2):
+#     return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
+#
+#
+# def compare_nemo(user_embedding, image_file, event_embedding):
+#     try:
+#         # Convert to float32 numpy arrays
+#         user_embedding_np = np.asarray(user_embedding, dtype=np.float32)
+#         event_embedding_np = np.asarray(event_embedding, dtype=np.float32)
+#
+#         # Ensure embeddings are 128-dimensional
+#         if user_embedding_np.shape != (128,) or event_embedding_np.shape != (128,):
+#             raise ValueError("Embeddings must be 128-dimensional.")
+#
+#         # Compute cosine similarity
+#         similarity = cosine_similarity(user_embedding_np, event_embedding_np)
+#
+#         # Set a more balanced threshold (higher = more strict, lower = more lenient)
+#         threshold = 0.65  # Adjust based on testing
+#
+#         # Cosine similarity is closer to 1 for similar faces
+#         if similarity >= threshold:
+#             return image_file
+#     except Exception as e:
+#         print(f"Error in comparison: {e}")
+#
+#     return None
 async def finding_nemo(user_email, event_name):
     try:
         with open('FACE_MODEL/user_embeddings.json', 'r') as f:
