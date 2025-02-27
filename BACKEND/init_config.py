@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, resources=["*"], origins="https://api-smartdrive.ccstiet.com, https://storage.googleapis.com", supports_credentials=True)
+CORS(app, resources=["*"], origins="https://api-smartdrive.ccstiet.com", supports_credentials=True)
 # CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 def path_request_auth(path):
