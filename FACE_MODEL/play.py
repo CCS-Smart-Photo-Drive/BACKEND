@@ -192,7 +192,7 @@ def compare_nemo(user_embedding, image_file, event_embedding):
     try:
         user_embedding_np = np.array(user_embedding)
         event_embedding_np = np.array(event_embedding)
-        match = face_recognition.compare_faces([user_embedding_np], event_embedding_np, tolerance = 0.45)
+        match = face_recognition.compare_faces([user_embedding_np], event_embedding_np, tolerance = 0.5)
         if any(match):
             return image_file
     except Exception as e:
