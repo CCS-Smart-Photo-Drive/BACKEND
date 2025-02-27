@@ -147,8 +147,8 @@ def process_user_image(image_path):
     try:
         user_dp = cv2.imread(image_path)
         user_dp = cv2.cvtColor(user_dp, cv2.COLOR_BGR2RGB)
-        face_locations = face_recognition.face_locations(user_dp, model="cnn")
-        user_dp_embeddings = face_recognition.face_encodings(user_dp, known_face_locations=face_locations)
+        face_locations = face_recognition.face_locations(user_dp)
+        user_dp_embeddings = face_recognition.face_encodings(user_dp)
 
 
         if user_dp_embeddings:
