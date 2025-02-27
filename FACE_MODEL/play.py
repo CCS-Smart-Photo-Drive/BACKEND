@@ -208,7 +208,7 @@ def compare_nemo(user_embedding, image_file, event_embedding):
             raise ValueError("Embeddings must be 128-dimensional.")
 
         distance = np.linalg.norm(user_embedding_np - event_embedding_np)
-        threshold = 0.5  # Adjust based on testing for best accuracy
+        threshold = 0.55  # Adjust based on testing for best accuracy
 
         if distance < threshold:
             return image_file
