@@ -108,11 +108,15 @@ async def user_my_dashboard():
                 os.remove(file_path)
                 print(public_url)
                 print("Uploading URL to Mongo")
-                url = {
-                    'email' : user_email,
-                    'url': public_url
-                }
-                profile_image_collection.insert_one(url)
+                # url = {
+                #     'email' : user_email,
+                #     'url': public_url
+                # }
+                profile_image_collection.update_one(
+                    {"email": user_email},
+                    {"$set": {"url": public_url}},
+                    upsert=True
+                )
                 return jsonify({'success': 'File uploaded', 'url': public_url}), 200
             else:
                 if error:
