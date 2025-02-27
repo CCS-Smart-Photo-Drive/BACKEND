@@ -187,33 +187,33 @@ def generate_user_embeddings(image_path, user_email, user_name):
     return True
 
 
-#User ko event ke photos me dhundega mast.
-# def compare_nemo(user_embedding, image_file, event_embedding):
-#     try:
-#         user_embedding_np = np.array(user_embedding)
-#         event_embedding_np = np.array(event_embedding)
-#         match = face_recognition.compare_faces([user_embedding_np], event_embedding_np, tolerance = 0.6)
-#         if any(match):
-#             return image_file
-#     except Exception as e:
-#         print(f"Error in comparison: {e}")
-#     return None
-
+# User ko event ke photos me dhundega mast.
 def compare_nemo(user_embedding, image_file, event_embedding):
     try:
-        user_embedding_np = np.asarray(user_embedding, dtype=np.float32)
-        event_embedding_np = np.asarray(event_embedding, dtype=np.float32)
-
-        if user_embedding_np.shape != (128,) or event_embedding_np.shape != (128,):
-            raise ValueError("Embeddings must be 128-dimensional.")
-
-        distance = np.linalg.norm(user_embedding_np - event_embedding_np)
-        threshold = 0.65 # Adjust based on testing for best accuracy
-
-        if distance < threshold:
+        user_embedding_np = np.array(user_embedding)
+        event_embedding_np = np.array(event_embedding)
+        match = face_recognition.compare_faces([user_embedding_np], event_embedding_np, tolerance = 0.6)
+        if any(match):
             return image_file
     except Exception as e:
         print(f"Error in comparison: {e}")
+    return None
+
+# def compare_nemo(user_embedding, image_file, event_embedding):
+#     try:
+#         user_embedding_np = np.asarray(user_embedding, dtype=np.float32)
+#         event_embedding_np = np.asarray(event_embedding, dtype=np.float32)
+#
+#         if user_embedding_np.shape != (128,) or event_embedding_np.shape != (128,):
+#             raise ValueError("Embeddings must be 128-dimensional.")
+#
+#         distance = np.linalg.norm(user_embedding_np - event_embedding_np)
+#         threshold = 0.65 # Adjust based on testing for best accuracy
+#
+#         if distance < threshold:
+#             return image_file
+#     except Exception as e:
+#         print(f"Error in comparison: {e}")
 
     return None
 
