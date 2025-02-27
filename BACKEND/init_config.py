@@ -85,5 +85,5 @@ profile_image_collection = mongo.db.profileUrls
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY")
 app.config['UPLOAD_FOLDER'] = os.path.join('BACKEND', 'upload_folder')
 app.config['PARTIAL'] = 'upload_folder'
-app.config['MAX_CONTENT_LENGTH'] = 200000 * 1024 * 1024  #Upload Limit 20 MB
+app.config['MAX_CONTENT_LENGTH'] = 200000 * 1024 * 1024
 
