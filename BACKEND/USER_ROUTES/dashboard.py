@@ -56,6 +56,7 @@ client = storage.Client.from_service_account_json(SERVICE_ACCOUNT_PATH)
 bucket_name = "ccs-host.appspot.com"
 bucket = client.bucket(bucket_name)
 
+
 async def upload_to_gcs(local_file_path, user_email):
     try:
         # Generate a random filename
@@ -72,7 +73,7 @@ async def upload_to_gcs(local_file_path, user_email):
         # Make the file public
         blob.make_public()
         print(blob.public_url)
-        
+
         # Return public URL
         return blob.public_url, None
 
