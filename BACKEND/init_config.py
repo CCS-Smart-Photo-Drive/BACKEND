@@ -70,7 +70,7 @@ def add_cors_headers(response):
     """ Ensure CORS headers are added to every response """
     response.headers["Access-Control-Allow-Origin"] = os.getenv("ALLOWED_ORIGINS")
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Event-Name, X-Description, X-Organized-By, X-Date, X-Event-Manager-Name, X-Event-Manager-Email, X-Chunk-Index"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type,Response-Type Authorization, X-Event-Name, X-Description, X-Organized-By, X-Date, X-Event-Manager-Name, X-Event-Manager-Email, X-Chunk-Index"
     return response
 
 app.config["MONGO_URI"] = os.getenv("MONGO_URI")
@@ -85,5 +85,5 @@ profile_image_collection = mongo.db.profileUrls
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY")
 app.config['UPLOAD_FOLDER'] = os.path.join('BACKEND', 'upload_folder')
 app.config['PARTIAL'] = 'upload_folder'
-app.config['MAX_CONTENT_LENGTH'] = 200000 * 1024 * 1024  #Upload Limit 20 MB
+app.config['MAX_CONTENT_LENGTH'] = 200000 * 1024 * 1024
 
