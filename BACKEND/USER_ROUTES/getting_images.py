@@ -37,10 +37,11 @@ async def get_gcs_image_urls(event_name, image_names):
         print(f"Error fetching images from GCS: {e}")
         return None
 
-@app.route('/get_photos/<event_name>', methods=['GET', 'POST'])
+@app.route('/get_photos/<event_name>', methods=['GET', 'POST', 'OPTIONS'])
 async def getting_nemo(event_name):
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-
+    if request.method == "OPTIONS":
+        return '', 204  # Allow preflight requests
     # if request.method == 'GET':
     #     zip_filename = request.args.get('download')
     #     if not zip_filename:
