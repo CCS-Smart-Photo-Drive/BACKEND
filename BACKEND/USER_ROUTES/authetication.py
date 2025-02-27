@@ -20,22 +20,28 @@ def user_status():
 
 
 def get_gcs_image_base64(user_email):
-
-
     try:
+        # Fetch user image record from MongoDB
         user_images = profile_image_collection.find_one({'email': user_email})
-        if user_images:
-            image_url = user_images.get("url")
+        if not user_images or "url" not in user_images:
+            return None  # No image found for the user
+
+        image_url = user_images["url"]
+
+        # Extract file extension (default to 'jpeg' if not found)
+        file_extension = os.path.splitext(image_url)[1].lstrip(".") or "jpeg"
 
         # Fetch the image
         response = requests.get(image_url, stream=True)
+        response.raise_for_status()  # Raise error for HTTP failures
 
-        if response.status_code == 200:
-            image_base64 = base64.b64encode(response.content).decode("utf-8")
-            return f"data:image/{file_extension};base64,{image_base64}"  # Return as Base64 data URL
-        else:
-            return None  # Image not found or inaccessible
+        # Convert to Base64
+        image_base64 = base64.b64encode(response.content).decode("utf-8")
+        return f"data:image/{file_extension};base64,{image_base64}"  # Return Base64 data URL
 
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching image: {e}")
+        return None
     except Exception as e:
         return {"error": f"Error fetching image: {str(e)}"}, 500
 
