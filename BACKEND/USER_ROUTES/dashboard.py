@@ -105,7 +105,7 @@ async def user_my_dashboard():
         if embedGen:
             public_url, error = await upload_to_gcs(file_path, user_email)
             if public_url:
-                os.remove(file_path)
+                # os.remove(file_path)
                 print(public_url)
                 print("Uploading URL to Mongo")
                 # url = {
@@ -126,3 +126,5 @@ async def user_my_dashboard():
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    finally:
+        os.remove(file_path)
