@@ -13,7 +13,7 @@ import asyncio
 
 @app.route('/all_events')
 async def all_events():
-    events = list(events_collection.find())
+    events = list(events_collection.find({"flag_visible": True}))
     for event in events:
         event['_id'] = str(event['_id'])
         event['location'] = 'Thapar'
