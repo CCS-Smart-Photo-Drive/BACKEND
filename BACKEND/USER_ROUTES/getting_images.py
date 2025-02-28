@@ -23,7 +23,9 @@ async def get_gcs_image_urls(event_name, image_names):
         image_urls = []
 
         for image_name in image_names:
-            blob_name = f"upload_folder/{event_name}/{image_name}"  # Full GCS path
+            # https://storage.googleapis.com/ccs-host.appspot.com/upload_folder/HackTU%206.0/HackTU%206.01.jpg
+            blob_name = f"upload_folder/{event_name}/{image_name}"
+            blob_name = blob_name.replace(" ", "%20")  # Full GCS path
             blob = bucket.blob(blob_name)
 
             if blob.exists():

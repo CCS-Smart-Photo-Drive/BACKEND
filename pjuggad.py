@@ -126,7 +126,7 @@ async def make_it_or_break_it(image_folder: str, event_name: str, event_descript
         # # Rename images
         for idx, filename in enumerate(os.listdir(image_folder), start=1):
             file_ext = os.path.splitext(filename)[1]
-            new_filename = f"{event_name}{idx}{file_ext}"
+            new_filename = f"{event_name}{idx}.jpg"
             old_path = os.path.join(image_folder, filename)
             new_path = os.path.join(image_folder, new_filename)
             os.rename(old_path, new_path)
@@ -187,7 +187,7 @@ async def make_it_or_break_it(image_folder: str, event_name: str, event_descript
 
 
 
-a = "HackTU"
+a = "HackTU 6.0"
 b = "Flagship Hackathon Of Thapar University"
 c = "Team CCS"
 d = "Sat Feb 08 2025 11:00 AM"
