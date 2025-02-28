@@ -37,7 +37,7 @@ jobs:
 
       - name: SSH into server and deploy
         run: |
-          ssh -o StrictHostKeyChecking=no kanavdhanda@smartdrive-server.ccstiet.com '
+          ssh -o StrictHostKeyChecking=no kanavdhanda@ccstiet.com '
             cd smartdrive &&
             git pull origin main &&
             sudo docker compose up --build -d &&
